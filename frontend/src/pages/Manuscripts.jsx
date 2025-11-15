@@ -84,20 +84,20 @@ export const Manuscripts = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-secondary-50">
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Manuscripts</h1>
+          <h1 className="text-3xl font-bold text-secondary-900">Manuscripts</h1>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            className="btn-primary"
           >
             Upload Manuscript
           </button>
         </div>
 
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
+        <div className="card mb-6 p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <input
@@ -105,14 +105,14 @@ export const Manuscripts = () => {
                 placeholder="Search manuscripts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="input-field"
               />
             </div>
             <div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="input-field"
               >
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
@@ -124,36 +124,36 @@ export const Manuscripts = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow">
+        <div className="card">
           {loading ? (
             <Loading />
           ) : filteredManuscripts.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">No manuscripts found</p>
+              <p className="text-secondary-500">No manuscripts found</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-secondary-200">
+                <thead className="bg-secondary-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                       File Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                       Upload Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-secondary-200">
                   {filteredManuscripts.map((manuscript) => (
-                    <tr key={manuscript.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <tr key={manuscript.id} className="hover:bg-secondary-50 transition">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-secondary-900">
                         {manuscript.file_name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -163,7 +163,7 @@ export const Manuscripts = () => {
                           {manuscript.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-600">
                         {new Date(manuscript.upload_date).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
@@ -171,13 +171,13 @@ export const Manuscripts = () => {
                           <>
                             <button
                               onClick={() => handleDownload(manuscript, 'docx')}
-                              className="text-indigo-600 hover:text-indigo-900"
+                              className="text-primary-600 hover:text-primary-700 transition font-medium"
                             >
                               DOCX
                             </button>
                             <button
                               onClick={() => handleDownload(manuscript, 'xml')}
-                              className="text-indigo-600 hover:text-indigo-900"
+                              className="text-primary-600 hover:text-primary-700 transition font-medium"
                             >
                               XML
                             </button>
@@ -185,7 +185,7 @@ export const Manuscripts = () => {
                         )}
                         <button
                           onClick={() => setDeleteConfirm(manuscript)}
-                          className="text-red-600 hover:text-red-900"
+                          className="text-red-600 hover:text-red-700 transition font-medium"
                         >
                           Delete
                         </button>
@@ -203,11 +203,11 @@ export const Manuscripts = () => {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-secondary-900 bg-opacity-75"
               onClick={() => !uploading && setShowUploadModal(false)}
             ></div>
             <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              <h3 className="text-lg leading-6 font-semibold text-secondary-900 mb-4">
                 Upload Manuscript
               </h3>
               {uploading ? (
@@ -219,7 +219,7 @@ export const Manuscripts = () => {
                     <button
                       type="button"
                       onClick={() => setShowUploadModal(false)}
-                      className="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm"
+                      className="btn-secondary w-full justify-center"
                     >
                       Cancel
                     </button>

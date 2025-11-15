@@ -42,22 +42,22 @@ export const Dashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-secondary-50">
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-secondary-900">
             Welcome, {getUserDisplayName()}!
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-secondary-600">
             Here's an overview of your manuscript processing activity
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <div className="flex items-center">
-              <div className="flex-shrink-0 bg-indigo-500 rounded-md p-3">
+              <div className="flex-shrink-0 bg-primary-500 rounded-md p-3">
                 <svg
                   className="h-6 w-6 text-white"
                   fill="none"
@@ -73,13 +73,13 @@ export const Dashboard = () => {
                 </svg>
               </div>
               <div className="ml-5">
-                <p className="text-sm font-medium text-gray-500">Total Manuscripts</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+                <p className="text-sm font-medium text-secondary-600">Total Manuscripts</p>
+                <p className="text-2xl font-semibold text-secondary-900">{stats.total}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
                 <svg
@@ -97,13 +97,13 @@ export const Dashboard = () => {
                 </svg>
               </div>
               <div className="ml-5">
-                <p className="text-sm font-medium text-gray-500">Processing</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.processing}</p>
+                <p className="text-sm font-medium text-secondary-600">Processing</p>
+                <p className="text-2xl font-semibold text-secondary-900">{stats.processing}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
                 <svg
@@ -121,13 +121,13 @@ export const Dashboard = () => {
                 </svg>
               </div>
               <div className="ml-5">
-                <p className="text-sm font-medium text-gray-500">Completed</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.completed}</p>
+                <p className="text-sm font-medium text-secondary-600">Completed</p>
+                <p className="text-2xl font-semibold text-secondary-900">{stats.completed}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="card p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-red-500 rounded-md p-3">
                 <svg
@@ -145,50 +145,50 @@ export const Dashboard = () => {
                 </svg>
               </div>
               <div className="ml-5">
-                <p className="text-sm font-medium text-gray-500">Failed</p>
-                <p className="text-2xl font-semibold text-gray-900">{stats.failed}</p>
+                <p className="text-sm font-medium text-secondary-600">Failed</p>
+                <p className="text-2xl font-semibold text-secondary-900">{stats.failed}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">Recent Manuscripts</h2>
+        <div className="card">
+          <div className="px-6 py-4 border-b border-secondary-200">
+            <h2 className="text-xl font-semibold text-secondary-900">Recent Manuscripts</h2>
           </div>
           <div className="px-6 py-4">
             {loading ? (
               <Loading />
             ) : manuscripts.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-500">No manuscripts yet</p>
+                <p className="text-secondary-500">No manuscripts yet</p>
                 <Link
                   to="/manuscripts"
-                  className="mt-4 inline-block px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+                  className="mt-4 inline-block btn-primary"
                 >
                   Upload Your First Manuscript
                 </Link>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
+                <table className="min-w-full divide-y divide-secondary-200">
+                  <thead className="bg-secondary-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                         File Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-6 py-3 text-left text-xs font-medium text-secondary-600 uppercase tracking-wider">
                         Upload Date
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white divide-y divide-secondary-200">
                     {manuscripts.map((manuscript) => (
-                      <tr key={manuscript.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <tr key={manuscript.id} className="hover:bg-secondary-50 transition">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-secondary-900">
                           {manuscript.file_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -198,7 +198,7 @@ export const Dashboard = () => {
                             {manuscript.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-600">
                           {new Date(manuscript.upload_date).toLocaleDateString()}
                         </td>
                       </tr>
@@ -208,10 +208,10 @@ export const Dashboard = () => {
               </div>
             )}
           </div>
-          <div className="px-6 py-4 border-t border-gray-200">
+          <div className="px-6 py-4 border-t border-secondary-200 bg-secondary-50">
             <Link
               to="/manuscripts"
-              className="text-indigo-600 hover:text-indigo-900 font-medium"
+              className="text-primary-600 hover:text-primary-700 font-medium transition"
             >
               View All Manuscripts →
             </Link>

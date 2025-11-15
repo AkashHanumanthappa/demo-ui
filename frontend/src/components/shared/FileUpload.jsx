@@ -66,8 +66,8 @@ export const FileUpload = ({ onFileSelect, accept = '.pdf', maxSize = 10485760 }
       <div
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
           dragActive
-            ? 'border-indigo-600 bg-indigo-50'
-            : 'border-gray-300 hover:border-indigo-400'
+            ? 'border-primary-600 bg-primary-50'
+            : 'border-secondary-300 hover:border-primary-400'
         }`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -84,7 +84,7 @@ export const FileUpload = ({ onFileSelect, accept = '.pdf', maxSize = 10485760 }
         <label htmlFor="file-upload" className="cursor-pointer">
           <div className="space-y-2">
             <svg
-              className="mx-auto h-12 w-12 text-gray-400"
+              className="mx-auto h-12 w-12 text-secondary-400"
               stroke="currentColor"
               fill="none"
               viewBox="0 0 48 48"
@@ -96,11 +96,11 @@ export const FileUpload = ({ onFileSelect, accept = '.pdf', maxSize = 10485760 }
                 strokeLinejoin="round"
               />
             </svg>
-            <div className="text-gray-600">
-              <span className="text-indigo-600 font-semibold">Click to upload</span> or drag and
+            <div className="text-secondary-700">
+              <span className="text-primary-600 font-semibold">Click to upload</span> or drag and
               drop
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-secondary-500">
               {accept} files up to {(maxSize / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>

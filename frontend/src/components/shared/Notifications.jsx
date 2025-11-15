@@ -40,7 +40,7 @@ export const Notifications = () => {
             </div>
             <button
               onClick={() => removeNotification(notification.id)}
-              className="ml-4 text-gray-500 hover:text-gray-700"
+              className="ml-4 text-secondary-500 hover:text-secondary-700 transition"
             >
               ✕
             </button>

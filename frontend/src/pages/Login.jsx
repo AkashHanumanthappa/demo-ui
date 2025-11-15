@@ -27,18 +27,18 @@ export const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-secondary-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-secondary-900">
             Manuscript Processor
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">Sign in to your account</p>
+          <p className="mt-3 text-sm text-secondary-600">Sign in to your account</p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+        <div className="bg-white rounded-lg shadow-card border border-secondary-200 p-8">
+          <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="sr-only">
+              <label htmlFor="email" className="block text-sm font-medium text-secondary-700 mb-2">
                 Email address
               </label>
               <input
@@ -48,12 +48,12 @@ export const Login = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
+                className="input-field"
+                placeholder="Enter your email"
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="password" className="block text-sm font-medium text-secondary-700 mb-2">
                 Password
               </label>
               <input
@@ -63,22 +63,22 @@ export const Login = () => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
+                className="input-field"
+                placeholder="Enter your password"
               />
             </div>
-          </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </div>
-        </form>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
