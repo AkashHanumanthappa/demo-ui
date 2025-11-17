@@ -1,116 +1,65 @@
 import { createContext, useState, useEffect, useContext } from 'react';
+import api from '../utils/api';
 
 const AuthContext = createContext(null);
-
-// Mock user data for static app
-const MOCK_USERS = {
-  'demo@example.com': {
-    id: '1',
-    email: 'demo@example.com',
-    first_name: 'Demo',
-    last_name: 'User',
-    is_active: true,
-    is_verified: true,
-    role: 'user',
-    created_at: '2024-01-01T00:00:00Z',
-    last_login: new Date().toISOString(),
-    login_count: 42,
-    manuscript_count: 5,
-  },
-  'admin@example.com': {
-    id: '2',
-    email: 'admin@example.com',
-    first_name: 'Admin',
-    last_name: 'User',
-    is_active: true,
-    is_verified: true,
-    role: 'admin',
-    created_at: '2024-01-01T00:00:00Z',
-    last_login: new Date().toISOString(),
-    login_count: 150,
-    manuscript_count: 20,
-  },
-};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in (static mode)
-    const savedUser = localStorage.getItem('manuscript_user');
+    // Check if user is already logged in
+    const initAuth = async () => {
+      const token = localStorage.getItem('manuscript_token');
 
-    if (savedUser) {
-      try {
-        const userData = JSON.parse(savedUser);
-        setUser(userData);
-      } catch (error) {
-        console.error('Failed to parse saved user:', error);
+      if (token) {
+        try {
+          // Verify token and get user info
+          const response = await api.get('/users/me');
+          setUser(response.data.user);
+        } catch (error) {
+          console.error('Failed to verify token:', error);
+          // Clear invalid token
+          localStorage.removeItem('manuscript_token');
+          localStorage.removeItem('manuscript_user');
+        }
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = async (credentials) => {
-    // Static login - check against mock users
-    const mockUser = MOCK_USERS[credentials.email];
+    try {
+      const response = await api.post('/users/login', {
+        email: credentials.email,
+        password: credentials.password,
+      });
 
-    if (mockUser) {
-      const userData = {
-        ...mockUser,
-        last_login: new Date().toISOString(),
-      };
+      const { token, user: userData } = response.data;
 
-      setUser(userData);
+      // Store token and user data
+      localStorage.setItem('manuscript_token', token);
       localStorage.setItem('manuscript_user', JSON.stringify(userData));
-      localStorage.setItem('manuscript_token', 'static-token-' + Date.now());
+      setUser(userData);
 
       return userData;
-    } else {
-      // Auto-create user for any email
-      const newUser = {
-        id: Date.now().toString(),
-        email: credentials.email,
-        first_name: credentials.email.split('@')[0],
-        last_name: 'User',
-        is_active: true,
-        is_verified: true,
-        role: 'user',
-        created_at: new Date().toISOString(),
-        last_login: new Date().toISOString(),
-        login_count: 1,
-        manuscript_count: 0,
-      };
-
-      setUser(newUser);
-      localStorage.setItem('manuscript_user', JSON.stringify(newUser));
-      localStorage.setItem('manuscript_token', 'static-token-' + Date.now());
-
-      return newUser;
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Login failed');
     }
   };
 
   const register = async (credentials) => {
-    // Static registration - auto-create user
-    const newUser = {
-      id: Date.now().toString(),
-      email: credentials.email,
-      first_name: credentials.first_name || '',
-      last_name: credentials.last_name || '',
-      is_active: true,
-      is_verified: true,
-      role: 'user',
-      created_at: new Date().toISOString(),
-      last_login: new Date().toISOString(),
-      login_count: 1,
-      manuscript_count: 0,
-    };
-
-    setUser(newUser);
-    localStorage.setItem('manuscript_user', JSON.stringify(newUser));
-    localStorage.setItem('manuscript_token', 'static-token-' + Date.now());
-
-    return newUser;
+    try {
+      // Note: Registration requires admin privileges in the backend
+      // For now, throw an error directing users to contact admin
+      throw new Error('Please contact an administrator to create an account');
+    } catch (error) {
+      console.error('Registration failed:', error);
+      throw error;
+    }
   };
 
   const logout = async () => {
@@ -121,35 +70,65 @@ export const AuthProvider = ({ children }) => {
   };
 
   const getCurrentUserInfo = async () => {
-    return user;
+    try {
+      const response = await api.get('/users/me');
+      const userData = response.data.user;
+      setUser(userData);
+      localStorage.setItem('manuscript_user', JSON.stringify(userData));
+      return userData;
+    } catch (error) {
+      console.error('Failed to get user info:', error);
+      throw error;
+    }
   };
 
   const getCurrentUserProfile = async () => {
-    return user;
+    return getCurrentUserInfo();
   };
 
   const updateProfile = async (profileData) => {
-    const updatedUser = {
-      ...user,
-      ...profileData,
-    };
-    setUser(updatedUser);
-    localStorage.setItem('manuscript_user', JSON.stringify(updatedUser));
-    return updatedUser;
+    try {
+      if (!user) throw new Error('No user logged in');
+
+      const response = await api.put(`/users/${user.id}`, profileData);
+      const updatedUser = response.data.user;
+
+      setUser(updatedUser);
+      localStorage.setItem('manuscript_user', JSON.stringify(updatedUser));
+      return updatedUser;
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to update profile');
+    }
   };
 
   const changePassword = async (passwordData) => {
-    // Static mode - just simulate success
-    return { message: 'Password changed successfully' };
+    try {
+      if (!user) throw new Error('No user logged in');
+
+      const response = await api.put(`/users/${user.id}`, {
+        password: passwordData.newPassword,
+      });
+
+      return { message: 'Password changed successfully' };
+    } catch (error) {
+      console.error('Failed to change password:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to change password');
+    }
   };
 
   const requestPasswordReset = async (email) => {
-    // Static mode - just simulate success
-    return { message: 'Password reset email sent' };
+    // Backend doesn't have password reset endpoint yet
+    throw new Error('Password reset not available. Please contact an administrator.');
   };
 
   const validateToken = async () => {
-    return user;
+    try {
+      const response = await api.get('/users/me');
+      return response.data.user;
+    } catch (error) {
+      return null;
+    }
   };
 
   const isAuthenticated = () => {
@@ -167,12 +146,9 @@ export const AuthProvider = ({ children }) => {
   const getUserDisplayName = () => {
     if (!user) return '';
 
-    if (user.first_name && user.last_name) {
-      return `${user.first_name} ${user.last_name}`;
-    } else if (user.first_name) {
-      return user.first_name;
-    } else if (user.last_name) {
-      return user.last_name;
+    // Backend user model has username, not first_name/last_name
+    if (user.username) {
+      return user.username;
     } else {
       return user.email;
     }

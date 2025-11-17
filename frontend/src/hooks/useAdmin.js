@@ -1,154 +1,34 @@
 import { useState, useCallback } from 'react';
-
-// Mock users data for admin panel
-const MOCK_USERS = [
-  {
-    id: '1',
-    email: 'demo@example.com',
-    first_name: 'Demo',
-    last_name: 'User',
-    role: 'user',
-    is_active: true,
-    is_verified: true,
-    created_at: '2024-01-01T10:00:00Z',
-    last_login: '2024-01-16T08:30:00Z',
-    login_count: 42,
-    manuscript_count: 5,
-  },
-  {
-    id: '2',
-    email: 'admin@example.com',
-    first_name: 'Admin',
-    last_name: 'User',
-    role: 'admin',
-    is_active: true,
-    is_verified: true,
-    created_at: '2024-01-01T10:00:00Z',
-    last_login: '2024-01-16T09:00:00Z',
-    login_count: 150,
-    manuscript_count: 20,
-  },
-  {
-    id: '3',
-    email: 'john.doe@example.com',
-    first_name: 'John',
-    last_name: 'Doe',
-    role: 'user',
-    is_active: true,
-    is_verified: true,
-    created_at: '2024-01-05T14:30:00Z',
-    last_login: '2024-01-15T16:20:00Z',
-    login_count: 28,
-    manuscript_count: 8,
-  },
-  {
-    id: '4',
-    email: 'jane.smith@example.com',
-    first_name: 'Jane',
-    last_name: 'Smith',
-    role: 'user',
-    is_active: false,
-    is_verified: true,
-    created_at: '2024-01-10T11:00:00Z',
-    last_login: '2024-01-12T10:00:00Z',
-    login_count: 5,
-    manuscript_count: 2,
-  },
-];
-
-const MOCK_ACTIVITY_LOGS = [
-  {
-    id: '1',
-    user_id: '1',
-    user_email: 'demo@example.com',
-    action: 'login',
-    resource_type: 'auth',
-    resource_id: null,
-    details: 'User logged in successfully',
-    ip_address: '192.168.1.100',
-    user_agent: 'Mozilla/5.0',
-    timestamp: '2024-01-16T08:30:00Z',
-  },
-  {
-    id: '2',
-    user_id: '1',
-    user_email: 'demo@example.com',
-    action: 'upload',
-    resource_type: 'manuscript',
-    resource_id: '1',
-    details: 'Uploaded manuscript: research-paper-2024.docx',
-    ip_address: '192.168.1.100',
-    user_agent: 'Mozilla/5.0',
-    timestamp: '2024-01-15T10:30:00Z',
-  },
-  {
-    id: '3',
-    user_id: '2',
-    user_email: 'admin@example.com',
-    action: 'update_user',
-    resource_type: 'user',
-    resource_id: '3',
-    details: 'Updated user role',
-    ip_address: '192.168.1.101',
-    user_agent: 'Mozilla/5.0',
-    timestamp: '2024-01-15T09:00:00Z',
-  },
-];
-
-const MOCK_REPORTS = [
-  {
-    id: '1',
-    manuscript_id: '1',
-    file_name: 'research-paper-2024.docx',
-    user_email: 'demo@example.com',
-    status: 'completed',
-    created_at: '2024-01-15T10:30:00Z',
-    completed_at: '2024-01-15T10:35:00Z',
-    conversion_time: 45,
-    file_size: 2456789,
-    error_message: null,
-  },
-  {
-    id: '2',
-    manuscript_id: '4',
-    file_name: 'literature-review.pdf',
-    user_email: 'demo@example.com',
-    status: 'failed',
-    created_at: '2024-01-13T16:45:00Z',
-    completed_at: null,
-    conversion_time: null,
-    file_size: 4567890,
-    error_message: 'Unsupported PDF format',
-  },
-];
+import api from '../utils/api';
 
 export const useAdmin = () => {
-  const [users, setUsers] = useState([...MOCK_USERS]);
-  const [activityLogs, setActivityLogs] = useState([...MOCK_ACTIVITY_LOGS]);
-  const [reports, setReports] = useState([...MOCK_REPORTS]);
+  const [users, setUsers] = useState([]);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const getUsers = useCallback(async (params = {}) => {
     try {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const response = await api.get('/users', { params });
 
-      let filteredUsers = [...MOCK_USERS];
+      // Transform backend data to match frontend format
+      const transformedUsers = response.data.users?.map(user => ({
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        role: user.role,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt,
+      })) || [];
 
-      // Apply filters
-      if (params.role) {
-        filteredUsers = filteredUsers.filter(u => u.role === params.role);
-      }
-      if (params.is_active !== undefined) {
-        filteredUsers = filteredUsers.filter(u => u.is_active === params.is_active);
-      }
-
-      setUsers(filteredUsers);
+      setUsers(transformedUsers);
       return {
-        users: filteredUsers,
-        total: filteredUsers.length,
+        users: transformedUsers,
+        total: transformedUsers.length,
       };
     } catch (error) {
+      console.error('Failed to fetch users:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -156,79 +36,99 @@ export const useAdmin = () => {
   }, []);
 
   const updateUser = useCallback(async (userId, userData) => {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    try {
+      const response = await api.put(`/users/${userId}`, userData);
+      const updatedUser = response.data.user;
 
-    setUsers((prev) =>
-      prev.map((user) =>
-        user.id === userId
-          ? { ...user, ...userData }
-          : user
-      )
-    );
+      // Transform and update local state
+      const transformedUser = {
+        id: updatedUser._id,
+        email: updatedUser.email,
+        username: updatedUser.username,
+        role: updatedUser.role,
+        created_at: updatedUser.createdAt,
+        updated_at: updatedUser.updatedAt,
+      };
 
-    return { message: 'User updated successfully' };
+      setUsers((prev) =>
+        prev.map((user) => (user.id === userId ? transformedUser : user))
+      );
+
+      return { message: 'User updated successfully' };
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to update user');
+    }
   }, []);
 
   const deleteUser = useCallback(async (userId) => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    setUsers((prev) => prev.filter((user) => user.id !== userId));
+    try {
+      await api.delete(`/users/${userId}`);
+      setUsers((prev) => prev.filter((user) => user.id !== userId));
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to delete user');
+    }
   }, []);
 
   const bulkUpdateUsers = useCallback(async (userIds, updateData) => {
-    await new Promise(resolve => setTimeout(resolve, 300));
+    try {
+      // Since backend doesn't have bulk update, update one by one
+      const promises = userIds.map(userId => api.put(`/users/${userId}`, updateData));
+      await Promise.all(promises);
 
-    setUsers((prev) =>
-      prev.map((user) =>
-        userIds.includes(user.id)
-          ? { ...user, ...updateData }
-          : user
-      )
-    );
+      // Refresh users list
+      await getUsers();
 
-    return { message: `${userIds.length} users updated successfully` };
+      return { message: `${userIds.length} users updated successfully` };
+    } catch (error) {
+      console.error('Failed to bulk update users:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to bulk update users');
+    }
   }, []);
 
   const bulkDeleteUsers = useCallback(async (userIds) => {
-    await new Promise(resolve => setTimeout(resolve, 300));
-    setUsers((prev) => prev.filter((user) => !userIds.includes(user.id)));
+    try {
+      // Since backend doesn't have bulk delete, delete one by one
+      const promises = userIds.map(userId => api.delete(`/users/${userId}`));
+      await Promise.all(promises);
+
+      setUsers((prev) => prev.filter((user) => !userIds.includes(user.id)));
+    } catch (error) {
+      console.error('Failed to bulk delete users:', error);
+      throw new Error(error.response?.data?.message || error.message || 'Failed to bulk delete users');
+    }
   }, []);
 
   const getUserStatistics = useCallback(async () => {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    try {
+      // Get statistics based on current users data
+      const adminUsers = users.filter(u => u.role === 'admin');
+      const regularUsers = users.filter(u => u.role === 'user');
 
-    return {
-      total_users: users.length,
-      active_users: users.filter(u => u.is_active).length,
-      inactive_users: users.filter(u => !u.is_active).length,
-      verified_users: users.filter(u => u.is_verified).length,
-      admin_users: users.filter(u => u.role === 'admin').length,
-      regular_users: users.filter(u => u.role === 'user').length,
-      total_manuscripts: users.reduce((sum, u) => sum + u.manuscript_count, 0),
-      average_manuscripts_per_user: users.reduce((sum, u) => sum + u.manuscript_count, 0) / users.length,
-    };
+      return {
+        total_users: users.length,
+        admin_users: adminUsers.length,
+        regular_users: regularUsers.length,
+      };
+    } catch (error) {
+      console.error('Failed to get user statistics:', error);
+      throw error;
+    }
   }, [users]);
 
   const getActivityLogs = useCallback(async (params = {}) => {
     try {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      let filteredLogs = [...MOCK_ACTIVITY_LOGS];
-
-      // Apply filters
-      if (params.action) {
-        filteredLogs = filteredLogs.filter(log => log.action === params.action);
-      }
-      if (params.user_id) {
-        filteredLogs = filteredLogs.filter(log => log.user_id === params.user_id);
-      }
-
-      setActivityLogs(filteredLogs);
+      // Backend doesn't have activity logs endpoint yet
+      // Return empty array for now
+      setActivityLogs([]);
       return {
-        activities: filteredLogs,
-        total: filteredLogs.length,
+        activities: [],
+        total: 0,
       };
     } catch (error) {
+      console.error('Failed to fetch activity logs:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -236,40 +136,48 @@ export const useAdmin = () => {
   }, []);
 
   const getSystemHealth = useCallback(async () => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    return {
-      status: 'healthy',
-      uptime: 864000, // 10 days in seconds
-      cpu_usage: 45.5,
-      memory_usage: 62.3,
-      disk_usage: 38.7,
-      active_connections: 127,
-      database_status: 'connected',
-      cache_status: 'operational',
-      queue_status: 'processing',
-      last_backup: '2024-01-16T00:00:00Z',
-    };
+    try {
+      const response = await api.get('/health');
+      return {
+        status: response.data.success ? 'healthy' : 'unhealthy',
+        timestamp: response.data.timestamp,
+        database_status: 'connected',
+      };
+    } catch (error) {
+      console.error('Failed to get system health:', error);
+      return {
+        status: 'unhealthy',
+        database_status: 'disconnected',
+      };
+    }
   }, []);
 
   const getManuscriptReports = useCallback(async (params = {}) => {
     try {
       setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const response = await api.get('/files/all', { params });
 
-      let filteredReports = [...MOCK_REPORTS];
+      // Transform backend data to match frontend format
+      const transformedReports = response.data.files?.map(file => ({
+        id: file._id,
+        manuscript_id: file._id,
+        file_name: file.originalName,
+        user_email: file.uploadedBy?.email || 'Unknown',
+        status: file.status,
+        created_at: file.createdAt,
+        completed_at: file.processingCompletedAt,
+        conversion_time: file.conversionMetadata?.processingTime,
+        file_size: file.fileSize,
+        error_message: file.errorMessage,
+      })) || [];
 
-      // Apply filters
-      if (params.status) {
-        filteredReports = filteredReports.filter(r => r.status === params.status);
-      }
-
-      setReports(filteredReports);
+      setReports(transformedReports);
       return {
-        reports: filteredReports,
-        total: filteredReports.length,
+        reports: transformedReports,
+        total: response.data.count || transformedReports.length,
       };
     } catch (error) {
+      console.error('Failed to fetch manuscript reports:', error);
       throw error;
     } finally {
       setLoading(false);
@@ -277,41 +185,45 @@ export const useAdmin = () => {
   }, []);
 
   const retryConversion = useCallback(async (manuscriptId) => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Simulate retry - update report status
-    setReports((prev) =>
-      prev.map((report) =>
-        report.manuscript_id === manuscriptId
-          ? { ...report, status: 'processing', error_message: null }
-          : report
-      )
-    );
-
-    return { message: 'Conversion retry initiated' };
+    try {
+      // Backend doesn't have retry conversion endpoint yet
+      // This would need to be implemented in the backend
+      throw new Error('Retry conversion not yet implemented');
+    } catch (error) {
+      console.error('Failed to retry conversion:', error);
+      throw error;
+    }
   }, []);
 
   const getConversionStatistics = useCallback(async () => {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    try {
+      // Calculate statistics from reports
+      const totalConversions = reports.length;
+      const successfulConversions = reports.filter(r => r.status === 'completed').length;
+      const failedConversions = reports.filter(r => r.status === 'failed').length;
+      const processingConversions = reports.filter(r => r.status === 'processing').length;
 
-    const totalConversions = 150;
-    const successfulConversions = 135;
-    const failedConversions = 10;
-    const processingConversions = 5;
+      const completedReports = reports.filter(r => r.status === 'completed' && r.conversion_time);
+      const totalConversionTime = completedReports.reduce((sum, r) => sum + (r.conversion_time || 0), 0);
+      const avgConversionTime = completedReports.length > 0 ? totalConversionTime / completedReports.length : 0;
 
-    return {
-      total_conversions: totalConversions,
-      successful_conversions: successfulConversions,
-      failed_conversions: failedConversions,
-      processing_conversions: processingConversions,
-      success_rate: (successfulConversions / totalConversions) * 100,
-      average_conversion_time: 33.5,
-      total_size_processed: 245678901,
-      conversions_today: 12,
-      conversions_this_week: 47,
-      conversions_this_month: 150,
-    };
-  }, []);
+      const totalSizeProcessed = reports.reduce((sum, r) => sum + (r.file_size || 0), 0);
+      const successRate = totalConversions > 0 ? (successfulConversions / totalConversions) * 100 : 0;
+
+      return {
+        total_conversions: totalConversions,
+        successful_conversions: successfulConversions,
+        failed_conversions: failedConversions,
+        processing_conversions: processingConversions,
+        success_rate: successRate,
+        average_conversion_time: avgConversionTime,
+        total_size_processed: totalSizeProcessed,
+      };
+    } catch (error) {
+      console.error('Failed to get conversion statistics:', error);
+      throw error;
+    }
+  }, [reports]);
 
   return {
     users,

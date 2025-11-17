@@ -69,9 +69,9 @@ export const Manuscripts = () => {
 
   const getStatusColor = (status) => {
     const colors = {
-      pending: 'bg-yellow-100 text-yellow-800',
+      uploaded: 'bg-yellow-100 text-yellow-800',
       processing: 'bg-blue-100 text-blue-800',
-      complete: 'bg-green-100 text-green-800',
+      completed: 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
@@ -115,9 +115,9 @@ export const Manuscripts = () => {
                 className="input-field"
               >
                 <option value="all">All Status</option>
-                <option value="pending">Pending</option>
+                <option value="uploaded">Uploaded</option>
                 <option value="processing">Processing</option>
-                <option value="complete">Complete</option>
+                <option value="completed">Completed</option>
                 <option value="failed">Failed</option>
               </select>
             </div>
@@ -164,23 +164,20 @@ export const Manuscripts = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-secondary-600">
-                        {new Date(manuscript.upload_date).toLocaleDateString()}
+                        {new Date(manuscript.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        {manuscript.status === 'complete' && (
+                        {manuscript.status === 'completed' && manuscript.output_files?.length > 0 && (
                           <>
-                            <button
-                              onClick={() => handleDownload(manuscript, 'docx')}
-                              className="text-primary-600 hover:text-primary-700 transition font-medium"
-                            >
-                              DOCX
-                            </button>
-                            <button
-                              onClick={() => handleDownload(manuscript, 'xml')}
-                              className="text-primary-600 hover:text-primary-700 transition font-medium"
-                            >
-                              XML
-                            </button>
+                            {manuscript.output_files.map((file, index) => (
+                              <button
+                                key={index}
+                                onClick={() => handleDownload(manuscript, file.fileName)}
+                                className="text-primary-600 hover:text-primary-700 transition font-medium"
+                              >
+                                {file.fileName.split('.').pop().toUpperCase()}
+                              </button>
+                            ))}
                           </>
                         )}
                         <button
@@ -214,7 +211,7 @@ export const Manuscripts = () => {
                 <Loading text="Uploading..." />
               ) : (
                 <>
-                  <FileUpload onFileSelect={handleFileSelect} accept=".pdf" maxSize={10485760} />
+                  <FileUpload onFileSelect={handleFileSelect} accept=".pdf,.epub" maxSize={524288000} />
                   <div className="mt-5 sm:mt-6">
                     <button
                       type="button"
