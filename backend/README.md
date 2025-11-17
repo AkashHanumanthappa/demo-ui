@@ -121,7 +121,7 @@ Upload a PDF or EPUB file
 - Content-Type: multipart/form-data
 - Field name: `file`
 - Allowed types: PDF, EPUB
-- Max size: 100MB
+- Max size: 500MB
 
 #### GET /api/files
 Get all files uploaded by current user
