@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
         try {
           // Verify token and get user info
           const response = await api.get('/users/me');
-          setUser(response.data.user);
+          setUser(response.data.data.user);
         } catch (error) {
           console.error('Failed to verify token:', error);
           // Clear invalid token
@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
         password: credentials.password,
       });
 
-      const { token, user: userData } = response.data;
+      const { token, user: userData } = response.data.data;
 
       // Store token and user data
       localStorage.setItem('manuscript_token', token);
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
   const getCurrentUserInfo = async () => {
     try {
       const response = await api.get('/users/me');
-      const userData = response.data.user;
+      const userData = response.data.data.user;
       setUser(userData);
       localStorage.setItem('manuscript_user', JSON.stringify(userData));
       return userData;
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }) => {
       if (!user) throw new Error('No user logged in');
 
       const response = await api.put(`/users/${user.id}`, profileData);
-      const updatedUser = response.data.user;
+      const updatedUser = response.data.data.user;
 
       setUser(updatedUser);
       localStorage.setItem('manuscript_user', JSON.stringify(updatedUser));
@@ -125,7 +125,7 @@ export const AuthProvider = ({ children }) => {
   const validateToken = async () => {
     try {
       const response = await api.get('/users/me');
-      return response.data.user;
+      return response.data.data.user;
     } catch (error) {
       return null;
     }

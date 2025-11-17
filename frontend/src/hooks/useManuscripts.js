@@ -13,7 +13,7 @@ export const useManuscripts = () => {
       const response = await api.get('/files', { params });
 
       // Transform backend data to match frontend format
-      const transformedFiles = response.data.files.map(file => ({
+      const transformedFiles = response.data.data.files.map(file => ({
         id: file._id,
         file_name: file.originalName,
         file_size: file.fileSize,
@@ -30,7 +30,7 @@ export const useManuscripts = () => {
       setManuscripts(transformedFiles);
       return {
         manuscripts: transformedFiles,
-        total: response.data.count,
+        total: response.data.data.count,
       };
     } catch (error) {
       console.error('Failed to fetch manuscripts:', error);
@@ -68,7 +68,7 @@ export const useManuscripts = () => {
           },
         });
 
-        const uploadedFile = response.data.file;
+        const uploadedFile = response.data.data.file;
 
         // Transform backend response to frontend format
         const newManuscript = {
