@@ -25,30 +25,16 @@ const uploadFile = async (req, res) => {
       uploadedBy: req.user._id,
       status: 'uploaded'
     });
-      processFileAsync(file);
-    // Run converter and **wait** for it to finish
-    try {
-      const outputDir = path.join(__dirname, '../outputs', file._id.toString());
-      const conversionResult = await executeConverter(filePath, outputDir);
 
-      // Save output files to DB
-      file.outputFiles = conversionResult.outputFiles;
-      await file.save();
+    // Start async processing (don't wait for it to complete)
+    processFileAsync(file);
 
-      res.status(200).json({
-        success: true,
-        message: 'File uploaded and converted successfully',
-        data: { file }
-      });
-    } catch (conversionError) {
-      console.error('File processing failed:', conversionError);
-
-      res.status(500).json({
-        success: false,
-        message: 'File processing failed',
-        error: conversionError.message || conversionError
-      });
-    }
+    // Return immediate response - processing will continue in background
+    res.status(200).json({
+      success: true,
+      message: 'File uploaded successfully, processing started',
+      data: { file }
+    });
   } catch (error) {
     if (req.file) {
       await cleanupFile(req.file.path);

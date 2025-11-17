@@ -20,9 +20,19 @@ export const Manuscripts = () => {
 
   useEffect(() => {
     loadManuscripts();
-    const interval = setInterval(loadManuscripts, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
   }, []);
+
+  // Only poll when there are files being processed
+  useEffect(() => {
+    const hasProcessingFiles = manuscripts.some(
+      m => m.status === 'processing' || m.status === 'uploaded'
+    );
+
+    if (hasProcessingFiles) {
+      const interval = setInterval(loadManuscripts, 5000); // Poll every 5 seconds when processing
+      return () => clearInterval(interval);
+    }
+  }, [manuscripts]);
 
   const loadManuscripts = async () => {
     try {
