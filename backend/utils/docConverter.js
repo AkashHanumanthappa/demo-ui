@@ -1,4 +1,4 @@
-const { exec } = require('child_process');
+const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
@@ -11,30 +11,15 @@ const fsSync = require('fs');
  */
 const executeConverter = async (inputFilePath, outputDir) => {
   return new Promise((resolve, reject) => {
-    // Validate input parameters
+    // Validate input
     if (!inputFilePath || typeof inputFilePath !== 'string') {
-      return reject({
-        success: false,
-        message: 'Invalid input file path',
-        error: 'inputFilePath must be a valid string'
-      });
+      return reject({ success: false, message: 'Invalid input file path' });
     }
-
     if (!outputDir || typeof outputDir !== 'string') {
-      return reject({
-        success: false,
-        message: 'Invalid output directory',
-        error: 'outputDir must be a valid string'
-      });
+      return reject({ success: false, message: 'Invalid output directory' });
     }
-
-    // Verify input file exists
     if (!fsSync.existsSync(inputFilePath)) {
-      return reject({
-        success: false,
-        message: 'Input file not found',
-        error: `File does not exist: ${inputFilePath}`
-      });
+      return reject({ success: false, message: 'Input file not found', file: inputFilePath });
     }
 
     // Ensure output directory exists
@@ -42,40 +27,39 @@ const executeConverter = async (inputFilePath, outputDir) => {
       fsSync.mkdirSync(outputDir, { recursive: true });
     }
 
-    // Path to integrated_pipelines.py
-    // Adjust this path based on where RittDocConverter is cloned
+    // Get paths
+    const pythonPath = process.env.CONVERTER_PYTHON || 'python';
     const converterScriptPath = process.env.CONVERTER_SCRIPT_PATH ||
-                                path.join(__dirname, '../../RittDocConverter/integrated_pipelines.py');
+      path.join(__dirname, '../../RittDocConverter/integrated_pipeline.py');
 
-    // Python command with arguments
-    // Adjust the command format based on actual integrated_pipelines.py requirements
-    const command = `python3 "${converterScriptPath}" --input "${inputFilePath}" --output "${outputDir}"`;
+    console.log('Starting conversion:', inputFilePath);
 
-    console.log('Executing conversion command:', command);
+    const pyProcess = spawn(
+      pythonPath,
+      [converterScriptPath, inputFilePath, outputDir],
+      { shell: true }
+    );
 
-    exec(command, { maxBuffer: 1024 * 1024 * 10 }, async (error, stdout, stderr) => {
-      if (error) {
-        console.error('Conversion error:', error);
-        console.error('stderr:', stderr);
+
+    pyProcess.stdout.on('data', (data) => process.stdout.write(data.toString()));
+    pyProcess.stderr.on('data', (data) => process.stderr.write(data.toString()));
+
+    pyProcess.on('close', async (code) => {
+      if (code !== 0) {
         return reject({
           success: false,
-          message: 'Document conversion failed',
-          error: error.message,
-          stderr: stderr
+          message: 'Conversion failed',
+          code
         });
       }
 
       try {
-        // Read output directory to get generated files
         const outputFiles = await getOutputFiles(outputDir);
-
         resolve({
           success: true,
           message: 'Document converted successfully',
           outputPath: outputDir,
-          outputFiles: outputFiles,
-          stdout: stdout,
-          stderr: stderr
+          outputFiles
         });
       } catch (err) {
         reject({
@@ -94,60 +78,52 @@ const executeConverter = async (inputFilePath, outputDir) => {
  * @returns {Promise<Array>} - Array of file objects
  */
 const getOutputFiles = async (dirPath) => {
-  try {
-    const files = await fs.readdir(dirPath, { withFileTypes: true });
-    const outputFiles = [];
+  const files = await fs.readdir(dirPath, { withFileTypes: true });
+  let outputFiles = [];
 
-    for (const file of files) {
-      if (file.isFile()) {
-        const filePath = path.join(dirPath, file.name);
-        const stats = await fs.stat(filePath);
-        const ext = path.extname(file.name).toLowerCase();
-
-        outputFiles.push({
-          fileName: file.name,
-          filePath: filePath,
-          fileType: ext.replace('.', ''),
-          fileSize: stats.size
-        });
-      } else if (file.isDirectory()) {
-        // Recursively get files from subdirectories
-        const subDirPath = path.join(dirPath, file.name);
-        const subFiles = await getOutputFiles(subDirPath);
-        outputFiles.push(...subFiles);
-      }
+  for (const file of files) {
+    const fullPath = path.join(dirPath, file.name);
+    if (file.isFile()) {
+      const stats = await fs.stat(fullPath);
+      const ext = path.extname(file.name).toLowerCase();
+      outputFiles.push({
+        fileName: file.name,
+        filePath: fullPath,
+        fileType: ext.replace('.', ''),
+        fileSize: stats.size
+      });
+    } else if (file.isDirectory()) {
+      const subFiles = await getOutputFiles(fullPath);
+      outputFiles = outputFiles.concat(subFiles);
     }
-
-    return outputFiles;
-  } catch (error) {
-    console.error('Error reading directory:', error);
-    return [];
   }
+
+  return outputFiles;
 };
 
 /**
- * Clean up uploaded file
- * @param {string} filePath - File path to delete
+ * Delete a file
+ * @param {string} filePath
  */
 const cleanupFile = async (filePath) => {
   try {
     await fs.unlink(filePath);
     console.log('Cleaned up file:', filePath);
-  } catch (error) {
-    console.error('Error cleaning up file:', error);
+  } catch (err) {
+    console.error('Error cleaning up file:', err);
   }
 };
 
 /**
- * Clean up directory
- * @param {string} dirPath - Directory path to delete
+ * Delete a directory recursively
+ * @param {string} dirPath
  */
 const cleanupDirectory = async (dirPath) => {
   try {
     await fs.rm(dirPath, { recursive: true, force: true });
     console.log('Cleaned up directory:', dirPath);
-  } catch (error) {
-    console.error('Error cleaning up directory:', error);
+  } catch (err) {
+    console.error('Error cleaning up directory:', err);
   }
 };
 

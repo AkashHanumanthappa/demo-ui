@@ -20,7 +20,7 @@ export const Login = () => {
       showSuccess('Login Successful', 'Welcome back!');
       navigate('/dashboard');
     } catch (error) {
-      showError('Login Failed', error.response?.data?.detail || 'Invalid credentials');
+      showError('Login Failed', error.message || 'Invalid credentials');
     } finally {
       setLoading(false);
     }

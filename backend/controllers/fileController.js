@@ -8,16 +8,13 @@ const { executeConverter, cleanupFile } = require('../utils/docConverter');
 const uploadFile = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded'
-      });
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
     const { originalname, filename, path: filePath, size, mimetype } = req.file;
     const fileType = path.extname(originalname).toLowerCase().replace('.', '');
 
-    // Create file record in database
+    // Save file record in DB
     const file = await File.create({
       originalName: originalname,
       fileName: filename,
@@ -28,18 +25,31 @@ const uploadFile = async (req, res) => {
       uploadedBy: req.user._id,
       status: 'uploaded'
     });
+      processFileAsync(file);
+    // Run converter and **wait** for it to finish
+    try {
+      const outputDir = path.join(__dirname, '../outputs', file._id.toString());
+      const conversionResult = await executeConverter(filePath, outputDir);
 
-    res.status(201).json({
-      success: true,
-      message: 'File uploaded successfully',
-      data: { file }
-    });
+      // Save output files to DB
+      file.outputFiles = conversionResult.outputFiles;
+      await file.save();
 
-    // Process file asynchronously
-    processFileAsync(file);
+      res.status(200).json({
+        success: true,
+        message: 'File uploaded and converted successfully',
+        data: { file }
+      });
+    } catch (conversionError) {
+      console.error('File processing failed:', conversionError);
 
+      res.status(500).json({
+        success: false,
+        message: 'File processing failed',
+        error: conversionError.message || conversionError
+      });
+    }
   } catch (error) {
-    // Clean up uploaded file if database operation fails
     if (req.file) {
       await cleanupFile(req.file.path);
     }

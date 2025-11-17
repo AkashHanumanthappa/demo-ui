@@ -1,239 +1,172 @@
 import { useState, useCallback } from 'react';
-
-// Mock manuscripts data for static app
-const MOCK_MANUSCRIPTS = [
-  {
-    id: '1',
-    file_name: 'research-paper-2024.docx',
-    file_size: 2456789,
-    original_format: 'docx',
-    status: 'completed',
-    created_at: '2024-01-15T10:30:00Z',
-    updated_at: '2024-01-15T10:35:00Z',
-    conversion_time: 45,
-    error_message: null,
-    output_formats: ['xml', 'pdf'],
-  },
-  {
-    id: '2',
-    file_name: 'manuscript-draft.pdf',
-    file_size: 1234567,
-    original_format: 'pdf',
-    status: 'completed',
-    created_at: '2024-01-14T14:20:00Z',
-    updated_at: '2024-01-14T14:22:00Z',
-    conversion_time: 30,
-    error_message: null,
-    output_formats: ['xml'],
-  },
-  {
-    id: '3',
-    file_name: 'clinical-study.docx',
-    file_size: 3456789,
-    original_format: 'docx',
-    status: 'processing',
-    created_at: '2024-01-16T09:15:00Z',
-    updated_at: '2024-01-16T09:15:00Z',
-    conversion_time: null,
-    error_message: null,
-    output_formats: [],
-  },
-  {
-    id: '4',
-    file_name: 'literature-review.pdf',
-    file_size: 4567890,
-    original_format: 'pdf',
-    status: 'failed',
-    created_at: '2024-01-13T16:45:00Z',
-    updated_at: '2024-01-13T16:46:00Z',
-    conversion_time: null,
-    error_message: 'Unsupported PDF format',
-    output_formats: [],
-  },
-  {
-    id: '5',
-    file_name: 'data-analysis.docx',
-    file_size: 1987654,
-    original_format: 'docx',
-    status: 'completed',
-    created_at: '2024-01-12T11:00:00Z',
-    updated_at: '2024-01-12T11:02:00Z',
-    conversion_time: 25,
-    error_message: null,
-    output_formats: ['xml', 'pdf', 'html'],
-  },
-];
-
-const MOCK_STATISTICS = {
-  total_manuscripts: 5,
-  completed: 3,
-  processing: 1,
-  failed: 1,
-  total_size: 13703689,
-  average_conversion_time: 33.33,
-  success_rate: 75.0,
-};
+import api from '../utils/api';
+import environment from '../config/environment';
 
 export const useManuscripts = () => {
-  const [manuscripts, setManuscripts] = useState([...MOCK_MANUSCRIPTS]);
+  const [manuscripts, setManuscripts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
 
   const getManuscripts = useCallback(async (params = {}) => {
     try {
       setLoading(true);
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 300));
+      const response = await api.get('/files', { params });
 
-      let filteredManuscripts = [...MOCK_MANUSCRIPTS];
+      // Transform backend data to match frontend format
+      const transformedFiles = response.data.files.map(file => ({
+        id: file._id,
+        file_name: file.originalName,
+        file_size: file.fileSize,
+        original_format: file.fileType,
+        status: file.status,
+        created_at: file.createdAt,
+        updated_at: file.updatedAt,
+        conversion_time: file.conversionMetadata?.processingTime,
+        error_message: file.errorMessage,
+        output_formats: file.outputFiles?.map(f => f.fileType) || [],
+        output_files: file.outputFiles || [],
+      }));
 
-      // Apply filters if provided
-      if (params.status) {
-        filteredManuscripts = filteredManuscripts.filter(m => m.status === params.status);
-      }
-
-      setManuscripts(filteredManuscripts);
+      setManuscripts(transformedFiles);
       return {
-        manuscripts: filteredManuscripts,
-        total: filteredManuscripts.length,
+        manuscripts: transformedFiles,
+        total: response.data.count,
       };
     } catch (error) {
+      console.error('Failed to fetch manuscripts:', error);
       throw error;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const getUploadUrl = useCallback(async (fileName, fileSize, contentType) => {
-    // Simulate getting upload URL
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    const manuscriptId = Date.now().toString();
-    return {
-      upload_url: '#', // No actual upload in static mode
-      manuscript_id: manuscriptId,
-      file_name: fileName,
-    };
-  }, []);
-
-  const uploadToS3 = useCallback((url, file, manuscriptId) => {
-    return new Promise((resolve) => {
-      // Simulate upload progress
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setUploadProgress((prev) => ({
-          ...prev,
-          [manuscriptId]: {
-            progress,
-            loaded: (file.size * progress) / 100,
-            total: file.size,
-          },
-        }));
-
-        if (progress >= 100) {
-          clearInterval(interval);
-          resolve();
-        }
-      }, 100);
-    });
-  }, []);
-
   const uploadManuscript = useCallback(
     async (file) => {
       try {
-        // Get upload URL
-        const uploadData = await getUploadUrl(file.name, file.size, file.type);
-        const { manuscript_id } = uploadData;
+        const formData = new FormData();
+        formData.append('file', file);
 
-        // Simulate upload to S3
-        await uploadToS3('#', file, manuscript_id);
+        const manuscriptId = `temp-${Date.now()}`;
 
-        // Create new manuscript entry
+        // Upload with progress tracking
+        const response = await api.post('/files/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            setUploadProgress((prev) => ({
+              ...prev,
+              [manuscriptId]: {
+                progress,
+                loaded: progressEvent.loaded,
+                total: progressEvent.total,
+              },
+            }));
+          },
+        });
+
+        const uploadedFile = response.data.file;
+
+        // Transform backend response to frontend format
         const newManuscript = {
-          id: manuscript_id,
-          file_name: file.name,
-          file_size: file.size,
-          original_format: file.name.split('.').pop(),
-          status: 'processing',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          conversion_time: null,
-          error_message: null,
-          output_formats: [],
+          id: uploadedFile._id,
+          file_name: uploadedFile.originalName,
+          file_size: uploadedFile.fileSize,
+          original_format: uploadedFile.fileType,
+          status: uploadedFile.status,
+          created_at: uploadedFile.createdAt,
+          updated_at: uploadedFile.updatedAt,
+          conversion_time: uploadedFile.conversionMetadata?.processingTime,
+          error_message: uploadedFile.errorMessage,
+          output_formats: uploadedFile.outputFiles?.map(f => f.fileType) || [],
+          output_files: uploadedFile.outputFiles || [],
         };
 
         // Add to manuscripts list
         setManuscripts((prev) => [newManuscript, ...prev]);
 
-        // Simulate conversion completion after 3 seconds
+        // Clear upload progress
         setTimeout(() => {
-          setManuscripts((prev) =>
-            prev.map((m) =>
-              m.id === manuscript_id
-                ? {
-                    ...m,
-                    status: 'completed',
-                    conversion_time: 28,
-                    output_formats: ['xml', 'pdf'],
-                    updated_at: new Date().toISOString(),
-                  }
-                : m
-            )
-          );
-        }, 3000);
+          setUploadProgress((prev) => {
+            const newProgress = { ...prev };
+            delete newProgress[manuscriptId];
+            return newProgress;
+          });
+        }, 1000);
 
         return newManuscript;
       } catch (error) {
-        throw error;
+        console.error('Upload failed:', error);
+        throw new Error(error.response?.data?.message || error.message || 'Upload failed');
       }
     },
-    [getUploadUrl, uploadToS3]
+    []
   );
 
-  const confirmUpload = useCallback(async (manuscriptId) => {
-    await new Promise(resolve => setTimeout(resolve, 200));
-    return { message: 'Upload confirmed' };
-  }, []);
+  const getDownloadUrl = useCallback(async (manuscriptId, fileName) => {
+    try {
+      // Find the manuscript to get the correct output file
+      const manuscript = manuscripts.find(m => m.id === manuscriptId);
+      if (!manuscript) {
+        throw new Error('Manuscript not found');
+      }
 
-  const getDownloadUrl = useCallback(async (manuscriptId, fileType) => {
-    await new Promise(resolve => setTimeout(resolve, 200));
+      // For now, return the download URL that will trigger the download
+      const downloadUrl = `${environment.apiUrl}/files/${manuscriptId}/download/${fileName}`;
 
-    // Return a mock download URL (blob URL would be generated on actual download)
-    return {
-      download_url: '#',
-      file_name: `manuscript-${manuscriptId}.${fileType}`,
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-    };
-  }, []);
+      return {
+        download_url: downloadUrl,
+        file_name: fileName,
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      };
+    } catch (error) {
+      console.error('Failed to get download URL:', error);
+      throw error;
+    }
+  }, [manuscripts]);
 
   const deleteManuscript = useCallback(
     async (manuscriptId) => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await api.delete(`/files/${manuscriptId}`);
         setManuscripts((prev) => prev.filter((m) => m.id !== manuscriptId));
       } catch (error) {
-        throw error;
+        console.error('Failed to delete manuscript:', error);
+        throw new Error(error.response?.data?.message || error.message || 'Failed to delete manuscript');
       }
     },
     []
   );
 
   const getStatistics = useCallback(async () => {
-    await new Promise(resolve => setTimeout(resolve, 200));
+    try {
+      // Calculate statistics from current manuscripts
+      const completed = manuscripts.filter(m => m.status === 'completed');
+      const processing = manuscripts.filter(m => m.status === 'processing');
+      const failed = manuscripts.filter(m => m.status === 'failed');
 
-    // Calculate statistics from current manuscripts
-    const stats = {
-      total_manuscripts: manuscripts.length,
-      completed: manuscripts.filter(m => m.status === 'completed').length,
-      processing: manuscripts.filter(m => m.status === 'processing').length,
-      failed: manuscripts.filter(m => m.status === 'failed').length,
-      total_size: manuscripts.reduce((sum, m) => sum + m.file_size, 0),
-      average_conversion_time: MOCK_STATISTICS.average_conversion_time,
-      success_rate: MOCK_STATISTICS.success_rate,
-    };
+      const totalConversionTime = completed.reduce((sum, m) => sum + (m.conversion_time || 0), 0);
+      const avgConversionTime = completed.length > 0 ? totalConversionTime / completed.length : 0;
+      const successRate = manuscripts.length > 0 ? (completed.length / manuscripts.length) * 100 : 0;
 
-    return stats;
+      const stats = {
+        total_manuscripts: manuscripts.length,
+        completed: completed.length,
+        processing: processing.length,
+        failed: failed.length,
+        total_size: manuscripts.reduce((sum, m) => sum + (m.file_size || 0), 0),
+        average_conversion_time: avgConversionTime,
+        success_rate: successRate,
+      };
+
+      return stats;
+    } catch (error) {
+      console.error('Failed to get statistics:', error);
+      throw error;
+    }
   }, [manuscripts]);
 
   return {
@@ -241,10 +174,7 @@ export const useManuscripts = () => {
     loading,
     uploadProgress,
     getManuscripts,
-    getUploadUrl,
-    uploadToS3,
     uploadManuscript,
-    confirmUpload,
     getDownloadUrl,
     deleteManuscript,
     getStatistics,

@@ -1,8 +1,8 @@
-// Environment configuration - Static app (no backend)
+// Environment configuration
 const environment = {
   production: import.meta.env.PROD,
-  apiUrl: '', // No backend connection
-  isStatic: true, // Static app flag
+  apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  isStatic: false,
 };
 
 export default environment;

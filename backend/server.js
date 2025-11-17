@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
 const connectDB = require('./db/db');
+const multer = require('multer');
 
 // Load environment variables
 dotenv.config();
@@ -18,8 +19,27 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Increase body parser limits
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
+
+// Multer setup for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 200 * 1024 * 1024 } // 200MB
+});
+
+// Make `upload` available in routes
+app.use((req, res, next) => {
+  req.upload = upload;
+  next();
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -69,7 +89,6 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error',
@@ -92,7 +111,6 @@ ZPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP]
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
-  // Close server & exit process
   process.exit(1);
 });
 
