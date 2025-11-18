@@ -3,6 +3,11 @@ const User = require('../models/User');
 
 // Verify JWT token
 const authenticate = async (req, res, next) => {
+  // Skip authentication for OPTIONS requests (CORS preflight)
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
 
