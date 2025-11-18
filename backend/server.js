@@ -50,10 +50,12 @@ app.use((req, res, next) => {
 // Import routes
 const userRoutes = require('./routes/userRoutes');
 const fileRoutes = require('./routes/fileRoutes');
+const storageRoutes = require('./routes/storageRoutes');
 
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/storage', storageRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -73,6 +75,7 @@ app.get('/', (req, res) => {
     endpoints: {
       users: '/api/users',
       files: '/api/files',
+      storage: '/api/storage (Admin only)',
       health: '/api/health'
     }
   });

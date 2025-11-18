@@ -9,6 +9,10 @@ const {
   downloadFromGridFS,
   downloadToLocal
 } = require('../utils/gridfs');
+const {
+  checkStorageAvailability,
+  performAutoCleanup
+} = require('../utils/storageManager');
 
 // @desc    Upload and process file
 // @route   POST /api/files/upload
@@ -23,6 +27,29 @@ const uploadFile = async (req, res) => {
     const { originalname, filename, path: filePath, size, mimetype } = req.file;
     const fileType = path.extname(originalname).toLowerCase().replace('.', '');
     tempFilePath = filePath;
+
+    // Check storage availability before upload
+    const storageCheck = await checkStorageAvailability(size);
+
+    if (!storageCheck.canUpload) {
+      // Clean up temp file
+      await cleanupFile(tempFilePath);
+
+      return res.status(507).json({
+        success: false,
+        message: storageCheck.reason,
+        storageStats: storageCheck.stats,
+        quotaExceeded: true
+      });
+    }
+
+    // If storage is high, trigger background cleanup
+    if (storageCheck.shouldCleanup) {
+      console.log('Storage usage high, triggering background cleanup...');
+      performAutoCleanup().catch(err =>
+        console.error('Background cleanup error:', err)
+      );
+    }
 
     console.log(`Uploading file to GridFS: ${originalname}`);
 
@@ -65,6 +92,20 @@ const uploadFile = async (req, res) => {
     // Clean up temporary file in case of error
     if (tempFilePath) {
       await cleanupFile(tempFilePath);
+    }
+
+    // Handle MongoDB quota exceeded error
+    if (error.code === 8000 || error.codeName === 'AtlasError' ||
+        (error.message && error.message.includes('quota'))) {
+      console.error('Storage quota exceeded:', error.message);
+
+      return res.status(507).json({
+        success: false,
+        message: 'Storage quota exceeded. Please delete old files or contact administrator.',
+        error: error.message,
+        quotaExceeded: true,
+        suggestion: 'Try deleting some of your old files to free up space.'
+      });
     }
 
     res.status(500).json({
@@ -112,6 +153,15 @@ const processFileAsync = async (file) => {
 
     // Upload output files to GridFS
     console.log(`Uploading ${result.outputFiles.length} output files to GridFS...`);
+
+    // Check storage before uploading output files
+    const totalOutputSize = result.outputFiles.reduce((sum, f) => sum + (f.fileSize || 0), 0);
+    const storageCheck = await checkStorageAvailability(totalOutputSize);
+
+    if (!storageCheck.canUpload) {
+      throw new Error(`Storage quota exceeded: ${storageCheck.reason}`);
+    }
+
     const gridfsFiles = await uploadMultipleToGridFS(
       result.outputFiles,
       {
