@@ -24,7 +24,16 @@ export const useDownload = () => {
     setDownloads((prev) => [...prev, downloadItem]);
 
     try {
-      const response = await fetch(url);
+      // Get auth token from localStorage
+      const token = localStorage.getItem('manuscript_token');
+
+      // Add Authorization header to the fetch request
+      const headers = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, { headers });
 
       // Check if response is ok
       if (!response.ok) {
