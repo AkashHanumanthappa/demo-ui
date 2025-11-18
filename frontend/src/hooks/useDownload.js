@@ -25,7 +25,24 @@ export const useDownload = () => {
 
     try {
       const response = await fetch(url);
+
+      // Check if response is ok
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+      }
+
+      // Check content-length to validate response
+      const contentLength = response.headers.get('content-length');
+      if (!contentLength || contentLength === '0') {
+        console.warn('Warning: No content-length header or zero-length file');
+      }
+
       const blob = await response.blob();
+
+      // Validate blob size
+      if (blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
 
       // Create download link
       const link = document.createElement('a');
@@ -34,6 +51,11 @@ export const useDownload = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      // Clean up the blob URL after a short delay
+      setTimeout(() => {
+        window.URL.revokeObjectURL(link.href);
+      }, 100);
 
       // Update download status
       setDownloads((prev) =>

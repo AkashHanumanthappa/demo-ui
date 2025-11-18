@@ -293,29 +293,25 @@ const downloadOutputFile = async (req, res) => {
       });
     }
 
-    // Check if file is stored in GridFS
-    if (outputFile.storedInGridFS && outputFile.gridfsFileId) {
-      // Download from GridFS
-      const { downloadStream, fileName, contentType } = await downloadFromGridFS(outputFile.gridfsFileId);
-
-      // Set headers
-      res.set({
-        'Content-Type': contentType,
-        'Content-Disposition': `attachment; filename="${fileName}"`
+    // Download from GridFS (all files are stored in GridFS)
+    if (!outputFile.storedInGridFS || !outputFile.gridfsFileId) {
+      return res.status(404).json({
+        success: false,
+        message: 'File not found in GridFS storage'
       });
-
-      // Pipe the GridFS stream to response
-      downloadStream.pipe(res);
-    } else {
-      // Fallback to file system (for backward compatibility)
-      if (!outputFile.filePath) {
-        return res.status(404).json({
-          success: false,
-          message: 'File path not found'
-        });
-      }
-      res.download(outputFile.filePath, outputFile.fileName);
     }
+
+    // Download from GridFS
+    const { downloadStream, fileName, contentType } = await downloadFromGridFS(outputFile.gridfsFileId);
+
+    // Set headers
+    res.set({
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename="${fileName}"`
+    });
+
+    // Pipe the GridFS stream to response
+    downloadStream.pipe(res);
 
   } catch (error) {
     console.error('Error downloading file:', error);
