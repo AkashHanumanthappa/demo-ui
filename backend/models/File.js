@@ -47,8 +47,14 @@ const fileSchema = new mongoose.Schema({
   },
   outputFiles: [{
     fileName: String,
-    filePath: String,
-    fileType: String
+    filePath: String,  // Deprecated - kept for backward compatibility
+    fileType: String,
+    fileSize: Number,
+    gridfsFileId: mongoose.Schema.Types.ObjectId,  // GridFS file reference
+    storedInGridFS: {
+      type: Boolean,
+      default: false
+    }
   }],
   errorMessage: {
     type: String

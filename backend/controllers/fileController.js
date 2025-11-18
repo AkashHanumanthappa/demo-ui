@@ -1,6 +1,7 @@
 const File = require('../models/File');
 const path = require('path');
-const { executeConverter, cleanupFile } = require('../utils/docConverter');
+const { executeConverter, cleanupFile, cleanupDirectory } = require('../utils/docConverter');
+const { uploadMultipleToGridFS, deleteFromGridFS, downloadFromGridFS } = require('../utils/gridfs');
 
 // @desc    Upload and process file
 // @route   POST /api/files/upload
@@ -68,17 +69,47 @@ const processFileAsync = async (file) => {
     // Execute converter
     const result = await executeConverter(file.filePath, outputDir);
 
+    // Upload output files to GridFS
+    console.log(`Uploading ${result.outputFiles.length} output files to GridFS...`);
+    const gridfsFiles = await uploadMultipleToGridFS(
+      result.outputFiles,
+      {
+        sourceFileId: file._id,
+        uploadedBy: file.uploadedBy,
+        conversionType: 'RittDocConverter'
+      }
+    );
+
+    // Map GridFS file info to output files array
+    const outputFilesWithGridFS = result.outputFiles.map((file, index) => ({
+      fileName: file.fileName,
+      filePath: file.filePath,  // Keep for reference, but file is now in GridFS
+      fileType: file.fileType,
+      fileSize: file.fileSize,
+      gridfsFileId: gridfsFiles[index].fileId,
+      storedInGridFS: true
+    }));
+
     // Update file record with results
     await file.updateStatus('completed', {
       outputPath: result.outputPath,
-      outputFiles: result.outputFiles,
+      outputFiles: outputFilesWithGridFS,
       conversionMetadata: {
         conversionType: 'RittDocConverter',
         outputFormats: result.outputFiles.map(f => f.fileType)
       }
     });
 
-    console.log(`File ${file._id} processed successfully`);
+    console.log(`File ${file._id} processed successfully and uploaded to GridFS`);
+
+    // Clean up temporary output directory after uploading to GridFS
+    try {
+      await cleanupDirectory(outputDir);
+      console.log(`Cleaned up temporary output directory: ${outputDir}`);
+    } catch (cleanupError) {
+      console.error('Error cleaning up output directory:', cleanupError);
+      // Don't fail the process if cleanup fails
+    }
 
   } catch (error) {
     console.error(`File processing failed:`, error);
@@ -210,10 +241,32 @@ const downloadOutputFile = async (req, res) => {
       });
     }
 
-    // Send file
-    res.download(outputFile.filePath, outputFile.fileName);
+    // Check if file is stored in GridFS
+    if (outputFile.storedInGridFS && outputFile.gridfsFileId) {
+      // Download from GridFS
+      const { downloadStream, fileName, contentType } = await downloadFromGridFS(outputFile.gridfsFileId);
+
+      // Set headers
+      res.set({
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${fileName}"`
+      });
+
+      // Pipe the GridFS stream to response
+      downloadStream.pipe(res);
+    } else {
+      // Fallback to file system (for backward compatibility)
+      if (!outputFile.filePath) {
+        return res.status(404).json({
+          success: false,
+          message: 'File path not found'
+        });
+      }
+      res.download(outputFile.filePath, outputFile.fileName);
+    }
 
   } catch (error) {
+    console.error('Error downloading file:', error);
     res.status(500).json({
       success: false,
       message: 'Error downloading file',
@@ -244,10 +297,26 @@ const deleteFile = async (req, res) => {
       });
     }
 
-    // Clean up files
+    // Clean up input file from file system
     await cleanupFile(file.filePath);
+
+    // Delete output files from GridFS
+    if (file.outputFiles && file.outputFiles.length > 0) {
+      for (const outputFile of file.outputFiles) {
+        if (outputFile.storedInGridFS && outputFile.gridfsFileId) {
+          try {
+            await deleteFromGridFS(outputFile.gridfsFileId);
+            console.log(`Deleted GridFS file: ${outputFile.fileName}`);
+          } catch (error) {
+            console.error(`Error deleting GridFS file ${outputFile.fileName}:`, error);
+            // Continue with other deletions even if one fails
+          }
+        }
+      }
+    }
+
+    // Clean up output directory if it exists (for backward compatibility)
     if (file.outputPath) {
-      const { cleanupDirectory } = require('../utils/docConverter');
       await cleanupDirectory(file.outputPath);
     }
 
