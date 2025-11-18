@@ -124,8 +124,19 @@ const downloadFromGridFS = async (fileId) => {
 
       const file = files[0];
 
+      // Validate file size
+      if (!file.length || file.length === 0) {
+        return reject(new Error('File is empty or corrupted'));
+      }
+
       // Create download stream
       const downloadStream = bucket.openDownloadStream(objectId);
+
+      // Add error handler to catch stream initialization errors
+      downloadStream.on('error', (error) => {
+        console.error('GridFS download stream error:', error);
+        reject(error);
+      });
 
       resolve({
         downloadStream,
