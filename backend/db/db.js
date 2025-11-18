@@ -11,11 +11,9 @@ const connectDB = async () => {
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     console.log(`Database Name: ${conn.connection.name}`);
 
-    // Initialize GridFS after connection is established
-    mongoose.connection.once('open', () => {
-      initGridFS();
-      console.log('GridFS initialized successfully');
-    });
+    // Initialize GridFS using the established connection
+    initGridFS(conn.connection.db);
+    console.log("GridFS initialized successfully");
 
   } catch (error) {
     console.error(`Error: ${error.message}`);
