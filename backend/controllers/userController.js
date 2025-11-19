@@ -129,18 +129,61 @@ const loginUser = async (req, res) => {
 // @access  Private/Admin
 const getAllUsers = async (req, res) => {
   try {
+    console.log('=== GET ALL USERS REQUEST ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Requesting user:', req.user?.email || 'Unknown');
+    console.log('User role:', req.user?.role || 'Unknown');
+    console.log('User ID:', req.user?._id || 'Unknown');
+
+    // Check if User model is available
+    if (!User) {
+      console.error('❌ ERROR: User model is undefined!');
+      return res.status(500).json({
+        success: false,
+        message: 'User model is not available'
+      });
+    }
+
+    console.log('✅ User model is available');
+    console.log('Querying database...');
+
+    // Fetch users from database
     const users = await User.find().select('-password');
 
-    res.status(200).json({
+    console.log('✅ Query successful');
+    console.log('Found users count:', users.length);
+    
+    if (users.length > 0) {
+      console.log('Sample user:', {
+        id: users[0]._id,
+        username: users[0].username,
+        email: users[0].email,
+        role: users[0].role
+      });
+    }
+
+    const response = {
       success: true,
       count: users.length,
       data: { users }
-    });
+    };
+
+    console.log('Sending response...');
+    console.log('=== END GET ALL USERS ===\n');
+
+    res.status(200).json(response);
   } catch (error) {
+    console.error('=== ERROR IN GET ALL USERS ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Stack trace:', error.stack);
+    console.error('=== END ERROR ===\n');
+
     res.status(500).json({
       success: false,
       message: 'Error fetching users',
-      error: error.message
+      error: error.message,
+      errorType: error.name
     });
   }
 };
@@ -229,11 +272,75 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user._id;
+
+    console.log('🔐 Password change request from:', req.user.email);
+
+    // Validation
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide both current and new password'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    // Get user with password field
+    const user = await User.findById(userId).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const isPasswordCorrect = await user.comparePassword(currentPassword);
+
+    if (!isPasswordCorrect) {
+      console.log('❌ Current password is incorrect');
+      return res.status(401).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Set new password - the pre-save hook will hash it automatically
+    user.password = newPassword;
+    await user.save();
+
+    console.log('✅ Password changed successfully for:', user.email);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error changing password:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error changing password',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createUser,
   loginUser,
   getAllUsers,
   getCurrentUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  changePassword,
 };

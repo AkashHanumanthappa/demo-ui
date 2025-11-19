@@ -6,7 +6,8 @@ const {
   getAllUsers,
   getCurrentUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  changePassword
 } = require('../controllers/userController');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 
@@ -15,7 +16,7 @@ router.post('/login', loginUser);
 
 // Protected routes (require authentication)
 router.get('/me', authenticate, getCurrentUser);
-
+router.patch('/me/password', authenticate, changePassword);
 // Admin only routes
 router.post('/', authenticate, authorizeAdmin, createUser);
 router.get('/', authenticate, authorizeAdmin, getAllUsers);

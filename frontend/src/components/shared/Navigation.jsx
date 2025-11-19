@@ -30,6 +30,7 @@ export const Navigation = () => {
 
   if (isAdmin()) {
     secondaryNavLinks.push({ path: '/admin', label: 'Admin', icon: Shield });
+    secondaryNavLinks.push({ path: '/admin/users', label: 'Users', icon: User });
   }
 
   return (
@@ -63,47 +64,50 @@ export const Navigation = () => {
                 <p className="text-xs font-medium" style={{ color: '#6890b8' }}>Digital Library Management System</p>
               </div>
             </Link>
-            <div className="hidden md:flex space-x-1">
-              <Link
-                to="/dashboard"
-                className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
+
+            {/* Right Side - Login/User Info */}
+            <div className="flex items-center space-x-4">
+              {/* User Display - Desktop */}
+              <div className="hidden md:flex items-center space-x-3">
+                <div className="text-right">
+                  <div className="text-sm font-semibold" style={{ color: '#2c3e50' }}>Login:</div>
+                </div>
+                <div 
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg"
+                  style={{
+                    backgroundColor: '#e8f3f9',
+                    border: '1px solid #6890b8'
+                  }}
+                >
+                  <User size={18} style={{ color: '#4f7299' }} />
+                  <span className="font-medium" style={{ color: '#2c3e50' }}>{getUserDisplayName()}</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="px-5 py-2 rounded-md transition font-semibold shadow-sm hover:shadow-md"
+                  style={{
+                    backgroundColor: '#3d5b7a',
+                    color: 'white',
+                    border: '2px solid #2c4356'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2c4356'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3d5b7a'}
+                >
+                  Log Out
+                </button>
+              </div>
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden p-2 rounded-md transition"
+                style={{
+                  backgroundColor: mobileMenuOpen ? '#e8f3f9' : 'transparent',
+                  border: '1px solid #6890b8'
+                }}
               >
-                Dashboard
-              </Link>
-              <Link
-                to="/manuscripts"
-                className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
-              >
-                Manuscripts
-              </Link>
-              <Link
-                to="/profile"
-                className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
-              >
-                Profile
-              </Link>
-              <Link
-                to="/settings"
-                className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
-              >
-                Settings
-              </Link>
-              {isAdmin() && (
-                <>
-                  <Link
-                    to="/admin"
-                    className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
-                  >
-                    Admin
-                  </Link>
-                  <Link
-                    to="/admin/users"
-                    className="px-3 py-2 rounded-md hover:bg-primary-700 transition"
-                  >
-                    Users
-                  </Link>
-                </>
-              )}
+                {mobileMenuOpen ? <X size={24} style={{ color: '#4f7299' }} /> : <Menu size={24} style={{ color: '#4f7299' }} />}
+              </button>
             </div>
           </div>
         </div>
