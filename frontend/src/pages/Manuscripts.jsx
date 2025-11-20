@@ -201,38 +201,38 @@ export const Manuscripts = () => {
     <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, #e8f0f8, #f5f9fc)' }}>
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        {/* Header - Responsive */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Manuscript Library</h1>
-            <p className="text-gray-600">Manage and convert your digital manuscripts</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-1 sm:mb-2">Manuscript Library</h1>
+            <p className="text-sm sm:text-base text-gray-600">Manage and convert your digital manuscripts</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
             {/* Manual Refresh Button */}
             <button
               onClick={handleManualRefresh}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-3 rounded-lg font-semibold border-2 transition-all duration-200 hover:scale-105"
-              style={{ 
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-semibold border-2 transition-all duration-200 hover:scale-105 flex-1 sm:flex-initial"
+              style={{
                 backgroundColor: loading ? '#e0e0e0' : '#e8f3f9',
                 borderColor: '#6890b8',
                 color: '#4f7299'
               }}
             >
-              <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-              Refresh
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              <span className="text-sm sm:text-base">Refresh</span>
             </button>
-            
+
             <button
               onClick={() => setShowUploadModal(true)}
-              className="flex items-center gap-2 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-              style={{ 
+              className="flex items-center justify-center gap-2 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex-1 sm:flex-initial"
+              style={{
                 backgroundColor: '#4f7299',
                 border: '2px solid #3d5b7a'
               }}
             >
-              <Upload size={20} />
-              Upload Manuscript
+              <Upload size={18} />
+              <span className="text-sm sm:text-base">Upload</span>
             </button>
           </div>
         </div>
@@ -313,54 +313,66 @@ export const Manuscripts = () => {
                   key={manuscript.id}
                   className="bg-white rounded-xl shadow-card border border-gray-200 hover:shadow-card-hover transition-all duration-200 animate-slide-in overflow-hidden"
                 >
-                  {/* Input File Row */}
+                  {/* Input File Row - Responsive */}
                   <div
                     onClick={() => toggleFileExpand(manuscript.id)}
-                    className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                      {/* Mobile: Icon + Filename Row */}
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
                           {isExpanded ? (
-                            <ChevronDown size={24} style={{ color: '#4f7299' }} />
+                            <ChevronDown size={20} className="sm:w-6 sm:h-6" style={{ color: '#4f7299' }} />
                           ) : (
-                            <ChevronRight size={24} className="text-gray-400" />
+                            <ChevronRight size={20} className="sm:w-6 sm:h-6 text-gray-400" />
                           )}
                         </div>
 
                         <div className="flex-shrink-0">
-                          <File className="text-primary-600" size={32} style={{ color: '#4f7299' }} />
+                          <File className="text-primary-600 w-6 h-6 sm:w-8 sm:h-8" style={{ color: '#4f7299' }} />
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-gray-900 break-all mb-1">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-all mb-2">
                             {manuscript.file_name}
                           </h3>
-                          <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                          <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                             <span className="flex items-center gap-1">
                               <strong>Size:</strong> {formatFileSize(manuscript.file_size)}
                             </span>
                             <span className="flex items-center gap-1">
                               <strong>Format:</strong> {manuscript.original_format?.toUpperCase() || 'N/A'}
                             </span>
-                            <span className="flex items-center gap-1">
-                              <strong>Uploaded:</strong> {new Date(manuscript.created_at).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'short', 
+                            <span className="flex items-center gap-1 hidden sm:flex">
+                              <strong>Uploaded:</strong> {new Date(manuscript.created_at).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
                                 day: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit'
                               })}
                             </span>
                           </div>
+                          {/* Mobile date - separate line */}
+                          <div className="mt-1 text-xs text-gray-500 sm:hidden">
+                            {new Date(manuscript.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
                         </div>
+                      </div>
 
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${statusInfo.bgColor} border ${statusInfo.borderColor}`}>
-                          <StatusIcon size={18} className={statusInfo.color} />
-                          <span className={`font-semibold text-sm ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
+                      {/* Status Badge - Stacked on mobile */}
+                      <div className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-full ${statusInfo.bgColor} border ${statusInfo.borderColor} self-start sm:self-center`}>
+                        <StatusIcon size={16} className={`sm:w-5 sm:h-5 ${statusInfo.color}`} />
+                        <span className={`font-semibold text-xs sm:text-sm ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
                       </div>
                     </div>
                   </div>
