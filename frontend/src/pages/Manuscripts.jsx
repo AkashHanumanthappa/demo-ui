@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useManuscripts } from '../hooks/useManuscripts';
 import { useDownload } from '../hooks/useDownload';
 import { useNotification } from '../contexts/NotificationContext';
@@ -16,7 +16,8 @@ import {
   AlertCircle,
   File,
   ChevronRight,
-  ChevronDown 
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 
 export const Manuscripts = () => {
@@ -29,28 +30,25 @@ export const Manuscripts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [expandedFile, setExpandedFile] = useState(null); // Track which file is expanded
+  const [expandedFile, setExpandedFile] = useState(null);
+  const hasLoadedInitially = useRef(false);
 
+  // Initial load - ONLY ONCE
   useEffect(() => {
-    loadManuscripts();
-  }, []);
-
-  // Only poll when there are files being processed
-  useEffect(() => {
-    const hasProcessingFiles = manuscripts.some(
-      m => m.status === 'processing' || m.status === 'uploaded'
-    );
-
-    if (hasProcessingFiles) {
-      const interval = setInterval(loadManuscripts, 5000);
-      return () => clearInterval(interval);
+    if (!hasLoadedInitially.current) {
+      console.log('📥 Initial load of manuscripts');
+      loadManuscripts();
+      hasLoadedInitially.current = true;
     }
-  }, [manuscripts]);
+  }, []);
 
   const loadManuscripts = async () => {
     try {
+      console.log('📂 Loading manuscripts from server...');
       await getManuscripts();
+      console.log('✓ Manuscripts loaded successfully');
     } catch (error) {
+      console.error('❌ Failed to load manuscripts:', error);
       handleError(error, 'Failed to load manuscripts');
     }
   };
@@ -58,11 +56,34 @@ export const Manuscripts = () => {
   const handleFileSelect = async (file) => {
     setUploading(true);
     try {
-      await uploadManuscript(file);
-      showSuccess('Upload Successful', `${file.name} has been uploaded successfully`);
+      console.log('📤 Starting file upload:', file.name);
+      const result = await uploadManuscript(file);
+      
+      console.log('✓ Upload result:', result);
+      
+      // REFRESH #1: Immediately after successful upload
+      console.log('🔄 REFRESH #1: Loading manuscripts after upload...');
+      await loadManuscripts();
+      
+      showSuccess(
+        'Upload Successful', 
+        `${file.name} has been uploaded successfully and is now being processed.`
+      );
+      
       setShowUploadModal(false);
+      
     } catch (error) {
-      handleError(error, 'Upload failed');
+      console.error('❌ Upload failed:', error);
+      
+      // Check if it's a timeout error
+      if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
+        handleError(
+          error, 
+          'Upload Timeout - The file upload took too long. Please try again with a smaller file or check your internet connection.'
+        );
+      } else {
+        handleError(error, 'Upload failed');
+      }
     } finally {
       setUploading(false);
     }
@@ -85,10 +106,18 @@ export const Manuscripts = () => {
       await deleteManuscript(deleteConfirm.id);
       showSuccess('Deleted', `${deleteConfirm.file_name} has been deleted`);
       setDeleteConfirm(null);
-      setExpandedFile(null); // Close expanded view after delete
+      setExpandedFile(null);
+      // Refresh list after delete
+      await loadManuscripts();
     } catch (error) {
       handleError(error, 'Delete failed');
     }
+  };
+
+  const handleManualRefresh = async () => {
+    console.log('🔄 Manual refresh triggered');
+    await loadManuscripts();
+    showSuccess('Refreshed', 'Manuscripts list has been updated');
   };
 
   const toggleFileExpand = (manuscriptId) => {
@@ -98,15 +127,15 @@ export const Manuscripts = () => {
   const getStatusInfo = (status) => {
     const statusMap = {
       uploaded: {
-        color: 'text-warning-700',
-        bgColor: 'bg-warning-50',
-        borderColor: 'border-warning-200',
-        icon: Upload,
-        label: 'Uploaded',
-        description: 'File uploaded to server'
+        color: 'text-blue-700',
+        bgColor: 'bg-blue-50',
+        borderColor: 'border-blue-200',
+        icon: Clock,
+        label: 'Processing',
+        description: 'Converting file formats'
       },
       processing: {
-        color: 'text-gray-700',
+        color: 'text-blue-700',
         bgColor: 'bg-blue-50',
         borderColor: 'border-blue-200',
         icon: Clock,
@@ -130,7 +159,7 @@ export const Manuscripts = () => {
         description: 'Conversion failed'
       },
     };
-    return statusMap[status] || statusMap.uploaded;
+    return statusMap[status] || statusMap.processing;
   };
 
   const getTrackingSteps = (status) => {
@@ -164,28 +193,70 @@ export const Manuscripts = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const hasProcessingFiles = manuscripts.some(
+    m => m.status === 'processing' || m.status === 'uploaded'
+  );
+
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, #e8f0f8, #f5f9fc)' }}>
       <Navigation />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        {/* Header - Responsive */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-8 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Manuscript Library</h1>
-            <p className="text-gray-600">Manage and convert your digital manuscripts</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-1 sm:mb-2">Manuscript Library</h1>
+            <p className="text-sm sm:text-base text-gray-600">Manage and convert your digital manuscripts</p>
           </div>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-2 text-white px-6 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-            style={{ 
-              backgroundColor: '#4f7299',
-              border: '2px solid #3d5b7a'
-            }}
-          >
-            <Upload size={20} />
-            Upload Manuscript
-          </button>
+          <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
+            {/* Manual Refresh Button */}
+            <button
+              onClick={handleManualRefresh}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-3 rounded-lg font-semibold border-2 transition-all duration-200 hover:scale-105 flex-1 sm:flex-initial"
+              style={{
+                backgroundColor: loading ? '#e0e0e0' : '#e8f3f9',
+                borderColor: '#6890b8',
+                color: '#4f7299'
+              }}
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+              <span className="text-sm sm:text-base">Refresh</span>
+            </button>
+
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center justify-center gap-2 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 flex-1 sm:flex-initial"
+              style={{
+                backgroundColor: '#4f7299',
+                border: '2px solid #3d5b7a'
+              }}
+            >
+              <Upload size={18} />
+              <span className="text-sm sm:text-base">Upload</span>
+            </button>
+          </div>
         </div>
+
+        {/* Info Banner - Processing Files */}
+        {hasProcessingFiles && (
+          <div className="mb-6 p-4 rounded-lg border-2" style={{
+            backgroundColor: '#e8f3f9',
+            borderColor: '#6890b8'
+          }}>
+            <div className="flex items-start gap-3">
+              <Clock size={20} style={{ color: '#4f7299' }} className="flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-sm mb-1" style={{ color: '#2c3e50' }}>
+                  Files Being Processed
+                </p>
+                <p className="text-sm" style={{ color: '#6890b8' }}>
+                  Your files are being converted. Click the <strong>"Refresh"</strong> button above to check for updates.
+                  The page will also automatically refresh when you upload a new file.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Search and Filter */}
         <div className="bg-white rounded-xl shadow-card border border-gray-200 p-6 mb-6">
@@ -209,7 +280,7 @@ export const Manuscripts = () => {
                 style={{ '--tw-ring-color': '#6890b8' }}
               >
                 <option value="all">All Status</option>
-                <option value="uploaded">Uploaded</option>
+                <option value="uploaded">Processing (Uploaded)</option>
                 <option value="processing">Processing</option>
                 <option value="completed">Completed</option>
                 <option value="failed">Failed</option>
@@ -242,67 +313,71 @@ export const Manuscripts = () => {
                   key={manuscript.id}
                   className="bg-white rounded-xl shadow-card border border-gray-200 hover:shadow-card-hover transition-all duration-200 animate-slide-in overflow-hidden"
                 >
-                  {/* Input File Row - Always Visible */}
+                  {/* Input File Row - Responsive */}
                   <div
                     onClick={() => toggleFileExpand(manuscript.id)}
-                    className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="p-4 sm:p-6 cursor-pointer hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center justify-between">
-                      {/* File Info */}
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        {/* Expand/Collapse Icon */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                      {/* Mobile: Icon + Filename Row */}
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
                         <div className="flex-shrink-0">
                           {isExpanded ? (
-                            <ChevronDown size={24} style={{ color: '#4f7299' }} />
+                            <ChevronDown size={20} className="sm:w-6 sm:h-6" style={{ color: '#4f7299' }} />
                           ) : (
-                            <ChevronRight size={24} className="text-gray-400" />
+                            <ChevronRight size={20} className="sm:w-6 sm:h-6 text-gray-400" />
                           )}
                         </div>
 
-                        {/* File Icon */}
                         <div className="flex-shrink-0">
-                          <File className="text-primary-600" size={32} style={{ color: '#4f7299' }} />
+                          <File className="text-primary-600 w-6 h-6 sm:w-8 sm:h-8" style={{ color: '#4f7299' }} />
                         </div>
 
-                        {/* File Details */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-gray-900 break-all mb-1">
+                          <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-all mb-2">
                             {manuscript.file_name}
                           </h3>
-                          <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                          <div className="flex flex-wrap gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600">
                             <span className="flex items-center gap-1">
                               <strong>Size:</strong> {formatFileSize(manuscript.file_size)}
                             </span>
                             <span className="flex items-center gap-1">
                               <strong>Format:</strong> {manuscript.original_format?.toUpperCase() || 'N/A'}
                             </span>
-                            <span className="flex items-center gap-1">
-                              <strong>Uploaded:</strong> {new Date(manuscript.created_at).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'short', 
+                            <span className="flex items-center gap-1 hidden sm:flex">
+                              <strong>Uploaded:</strong> {new Date(manuscript.created_at).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
                                 day: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit'
                               })}
                             </span>
                           </div>
+                          {/* Mobile date - separate line */}
+                          <div className="mt-1 text-xs text-gray-500 sm:hidden">
+                            {new Date(manuscript.created_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
                         </div>
+                      </div>
 
-                        {/* Status Badge */}
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${statusInfo.bgColor} border ${statusInfo.borderColor} ${
-                          manuscript.status === 'processing' ? 'shadow-glow-blue animate-pulse-glow' : 
-                          manuscript.status === 'completed' ? 'shadow-glow-green' : ''
-                        }`}>
-                          <StatusIcon size={18} className={statusInfo.color} />
-                          <span className={`font-semibold text-sm ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                        </div>
+                      {/* Status Badge - Stacked on mobile */}
+                      <div className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-full ${statusInfo.bgColor} border ${statusInfo.borderColor} self-start sm:self-center`}>
+                        <StatusIcon size={16} className={`sm:w-5 sm:h-5 ${statusInfo.color}`} />
+                        <span className={`font-semibold text-xs sm:text-sm ${statusInfo.color}`}>
+                          {statusInfo.label}
+                        </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Expanded Content - Shows only when clicked */}
+                  {/* Expanded Content */}
                   {isExpanded && (
                     <div className="border-t border-gray-200 bg-gray-50 p-6 animate-slide-in">
                       {/* Tracking Progress */}
@@ -315,7 +390,6 @@ export const Manuscripts = () => {
                               return (
                                 <div key={step.id} className="flex-1">
                                   <div className="flex items-center">
-                                    {/* Step Circle */}
                                     <div className="relative flex flex-col items-center">
                                       <div
                                         className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${
@@ -324,7 +398,7 @@ export const Manuscripts = () => {
                                             : step.isCompleted
                                             ? 'bg-success-100 border-success-500 text-success-600'
                                             : step.isCurrent
-                                            ? 'border-2 text-white animate-status-pulse'
+                                            ? 'border-2 text-white'
                                             : 'bg-gray-100 border-gray-300 text-gray-400'
                                         }`}
                                         style={step.isCurrent ? {
@@ -347,7 +421,6 @@ export const Manuscripts = () => {
                                       </span>
                                     </div>
 
-                                    {/* Connector Line */}
                                     {index < trackingSteps.length - 1 && (
                                       <div className="flex-1 h-0.5 mx-2 relative top-[-20px]">
                                         <div
@@ -364,6 +437,26 @@ export const Manuscripts = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Processing Notice */}
+                      {(manuscript.status === 'processing' || manuscript.status === 'uploaded') && (
+                        <div className="mb-6 p-4 rounded-lg border-2" style={{
+                          backgroundColor: '#e8f3f9',
+                          borderColor: '#6890b8'
+                        }}>
+                          <div className="flex items-start gap-2">
+                            <Clock size={18} style={{ color: '#4f7299' }} className="flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold text-sm" style={{ color: '#2c3e50' }}>
+                                ⏳ Conversion in Progress
+                              </p>
+                              <p className="text-sm mt-1" style={{ color: '#6890b8' }}>
+                                Your file is being processed. Click the <strong>"Refresh"</strong> button above to check for updates.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Error Message */}
                       {manuscript.status === 'failed' && manuscript.error_message && (
@@ -400,10 +493,9 @@ export const Manuscripts = () => {
                                       e.stopPropagation();
                                       handleDownload(manuscript, file.fileName);
                                     }}
-                                    className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-lg transition-all duration-200 group"
+                                    className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-lg hover:bg-blue-50 transition-all duration-200 group"
                                     style={{
-                                      border: '1px solid #6890b8',
-                                      '&:hover': { backgroundColor: '#e8f3f9' }
+                                      border: '1px solid #6890b8'
                                     }}
                                   >
                                     <div className="flex items-center gap-3">
@@ -426,13 +518,15 @@ export const Manuscripts = () => {
                             </div>
                           ) : (
                             <div className="text-center py-4">
-                              <Clock className="mx-auto text-gray-400 mb-2" size={24} />
+                              {(manuscript.status === 'processing' || manuscript.status === 'uploaded') && (
+                                <Clock className="mx-auto text-gray-400 mb-2" size={24} />
+                              )}
                               <p className="text-sm text-gray-600">
-                                {manuscript.status === 'processing'
+                                {manuscript.status === 'processing' || manuscript.status === 'uploaded'
                                   ? 'Files will be available after processing'
                                   : manuscript.status === 'failed'
                                   ? 'No files available due to error'
-                                  : 'Processing not started yet'}
+                                  : 'Processing not started'}
                               </p>
                             </div>
                           )}
@@ -446,7 +540,7 @@ export const Manuscripts = () => {
                           </div>
                           <div className="text-center py-4">
                             <p className="text-sm text-gray-600 mb-4">
-                              Permanently remove this manuscript and all associated files
+                              Permanently remove this manuscript and all files
                             </p>
                             <button
                               onClick={(e) => {
@@ -525,13 +619,13 @@ export const Manuscripts = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <ConfirmationDialog
         isOpen={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
         onConfirm={handleDelete}
         title="Delete Manuscript"
-        message={`Are you sure you want to delete "${deleteConfirm?.file_name}"? This action cannot be undone and will remove all associated files.`}
+        message={`Are you sure you want to delete "${deleteConfirm?.file_name}"? This action cannot be undone.`}
         confirmText="Delete Permanently"
         type="danger"
       />

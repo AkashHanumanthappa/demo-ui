@@ -27,6 +27,8 @@ const executeConverter = async (inputFilePath, outputDir) => {
       fsSync.mkdirSync(outputDir, { recursive: true });
     }
 
+    
+
     // Get paths
     const pythonPath = process.env.CONVERTER_PYTHON || 'python';
     const converterScriptPath = process.env.CONVERTER_SCRIPT_PATH ||

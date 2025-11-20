@@ -105,7 +105,8 @@ const processFileAsync = async (file) => {
     // Create output directory for this file
     outputDir = path.join(tempDir, 'output');
 
-    console.log(`Processing file ${file._id}: ${file.originalName}`);
+    const fileIdString = file._id.toString();
+    console.log(`Processing file ${fileIdString}: ${file.originalName}`);
 
     // Execute converter
     const result = await executeConverter(tempInputPath, outputDir);
