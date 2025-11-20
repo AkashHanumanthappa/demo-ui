@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   base: '/xmlconverter/',
   server: {
-    port: 4200,
+    port: 4202,
   },
   build: {
     outDir: 'dist',
