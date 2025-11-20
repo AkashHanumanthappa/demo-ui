@@ -116,6 +116,14 @@ const processFileAsync = async (file) => {
         fileName: file.originalName,
         timestamp: new Date().toISOString()
       });
+
+      // Emit a test percentage to verify WebSocket is working
+      console.log(`🧪 [WS] Emitting test percentage: 0% for fileId: ${fileIdString}`);
+      global.io.emit('processing:percentage', {
+        fileId: fileIdString,
+        percentage: 0,
+        timestamp: new Date().toISOString()
+      });
     }
 
     // Execute converter with fileId for WebSocket tracking
@@ -157,8 +165,17 @@ const processFileAsync = async (file) => {
 
     // Emit processing completed event via WebSocket
     if (global.io) {
+      // Emit 100% before completion
+      console.log(`🎯 [WS] Emitting final percentage: 100% for fileId: ${fileIdString}`);
+      global.io.emit('processing:percentage', {
+        fileId: fileIdString,
+        percentage: 100,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`🎉 [WS] Emitting processing:completed for fileId: ${fileIdString}`);
       global.io.emit('processing:completed', {
-        fileId: file._id.toString(),
+        fileId: fileIdString,
         fileName: file.originalName,
         timestamp: new Date().toISOString()
       });

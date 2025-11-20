@@ -56,6 +56,9 @@ const executeConverter = async (inputFilePath, outputDir, fileId = null) => {
     pyProcess.stdout.on('data', (data) => {
       const output = data.toString();
 
+      // Log raw Python output for debugging
+      console.log(`[Python Output] ${output.trim()}`);
+
       // Keep existing console output
       process.stdout.write(output);
 
@@ -63,10 +66,12 @@ const executeConverter = async (inputFilePath, outputDir, fileId = null) => {
       emitProgress(output);
 
       // Extract and emit specific progress information
-      const percentMatch = output.match(/(\d+\.\d+)%/);
+      // Match both decimal (100.0%) and integer (100%) formats
+      const percentMatch = output.match(/(\d+(?:\.\d+)?)%/);
       if (percentMatch && global.io && fileId) {
         const percentage = parseFloat(percentMatch[1]);
         console.log(`📊 [WS] Emitting percentage: ${percentage}% for fileId: ${fileId}`);
+        console.log(`📊 [WS] Full line: ${output.trim()}`);
         global.io.emit('processing:percentage', {
           fileId,
           percentage,
@@ -77,11 +82,17 @@ const executeConverter = async (inputFilePath, outputDir, fileId = null) => {
       // Check for validation messages
       if (output.includes('DTD validation PASSED') && global.io && fileId) {
         console.log(`✅ [WS] Emitting validation message for fileId: ${fileId}`);
+        console.log(`✅ [WS] Message content: ${output.trim()}`);
         global.io.emit('processing:validation', {
           fileId,
           message: output.trim(),
           timestamp: new Date().toISOString()
         });
+      }
+
+      // Also check for other common progress indicators
+      if (output.includes('improvement') && global.io && fileId) {
+        console.log(`📈 [WS] Improvement message detected: ${output.trim()}`);
       }
     });
 
