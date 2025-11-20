@@ -105,19 +105,22 @@ const processFileAsync = async (file) => {
     // Create output directory for this file
     outputDir = path.join(tempDir, 'output');
 
-    console.log(`Processing file ${file._id}: ${file.originalName}`);
+    const fileIdString = file._id.toString();
+    console.log(`Processing file ${fileIdString}: ${file.originalName}`);
 
     // Emit processing started event via WebSocket
     if (global.io) {
+      console.log(`🚀 [WS] Emitting processing:started for fileId: ${fileIdString}`);
       global.io.emit('processing:started', {
-        fileId: file._id.toString(),
+        fileId: fileIdString,
         fileName: file.originalName,
         timestamp: new Date().toISOString()
       });
     }
 
     // Execute converter with fileId for WebSocket tracking
-    const result = await executeConverter(tempInputPath, outputDir, file._id.toString());
+    console.log(`🔧 Executing converter with fileId: ${fileIdString}`);
+    const result = await executeConverter(tempInputPath, outputDir, fileIdString);
 
     // Upload output files to GridFS
     console.log(`Uploading ${result.outputFiles.length} output files to GridFS...`);

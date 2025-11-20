@@ -65,15 +65,18 @@ const executeConverter = async (inputFilePath, outputDir, fileId = null) => {
       // Extract and emit specific progress information
       const percentMatch = output.match(/(\d+\.\d+)%/);
       if (percentMatch && global.io && fileId) {
+        const percentage = parseFloat(percentMatch[1]);
+        console.log(`📊 [WS] Emitting percentage: ${percentage}% for fileId: ${fileId}`);
         global.io.emit('processing:percentage', {
           fileId,
-          percentage: parseFloat(percentMatch[1]),
+          percentage,
           timestamp: new Date().toISOString()
         });
       }
 
       // Check for validation messages
       if (output.includes('DTD validation PASSED') && global.io && fileId) {
+        console.log(`✅ [WS] Emitting validation message for fileId: ${fileId}`);
         global.io.emit('processing:validation', {
           fileId,
           message: output.trim(),

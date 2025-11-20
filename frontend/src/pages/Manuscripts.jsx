@@ -40,6 +40,18 @@ export const Manuscripts = () => {
     loadManuscripts();
   }, []);
 
+  // Debug: Log WebSocket connection status
+  useEffect(() => {
+    console.log('🔌 WebSocket connection status:', isConnected ? 'CONNECTED ✅' : 'DISCONNECTED ❌');
+  }, [isConnected]);
+
+  // Debug: Log processing data changes
+  useEffect(() => {
+    if (Object.keys(processingData).length > 0) {
+      console.log('📊 Processing data updated:', processingData);
+    }
+  }, [processingData]);
+
   // Only poll when there are files being processed (backup to WebSocket)
   useEffect(() => {
     const hasProcessingFiles = manuscripts.some(
@@ -59,14 +71,23 @@ export const Manuscripts = () => {
 
     manuscripts.forEach((manuscript) => {
       if (manuscript.status === 'processing' || manuscript.status === 'uploaded') {
+        console.log('🔔 Subscribing to processing events for file:', manuscript.id, manuscript.file_name);
+
         const unsubscribe = subscribeToProcessingProgress(manuscript.id, (event) => {
-          console.log('Processing event:', event);
+          console.log('📨 Processing event received:', {
+            type: event.type,
+            fileId: event.fileId,
+            manuscriptId: manuscript.id,
+            percentage: event.percentage,
+            message: event.message?.substring(0, 100) // First 100 chars
+          });
 
           setProcessingData((prev) => {
             const currentData = prev[manuscript.id] || {};
 
             switch (event.type) {
               case 'started':
+                console.log('✅ Processing started for:', manuscript.id);
                 return {
                   ...prev,
                   [manuscript.id]: {
@@ -77,6 +98,7 @@ export const Manuscripts = () => {
                 };
 
               case 'percentage':
+                console.log('📊 Percentage update:', event.percentage, '%');
                 return {
                   ...prev,
                   [manuscript.id]: {
@@ -86,6 +108,7 @@ export const Manuscripts = () => {
                 };
 
               case 'validation':
+                console.log('✅ Validation message:', event.message);
                 return {
                   ...prev,
                   [manuscript.id]: {
@@ -104,7 +127,7 @@ export const Manuscripts = () => {
                 };
 
               case 'completed':
-                // Reload manuscripts to get updated status
+                console.log('🎉 Processing completed for:', manuscript.id);
                 loadManuscripts();
                 return {
                   ...prev,
@@ -115,7 +138,7 @@ export const Manuscripts = () => {
                 };
 
               case 'failed':
-                // Reload manuscripts to get updated status
+                console.log('❌ Processing failed for:', manuscript.id);
                 loadManuscripts();
                 return {
                   ...prev,
@@ -332,6 +355,17 @@ export const Manuscripts = () => {
               const StatusIcon = statusInfo.icon;
               const isExpanded = expandedFile === manuscript.id;
               const realtimeData = processingData[manuscript.id] || {};
+
+              // Debug log for rendering
+              if (manuscript.status === 'processing') {
+                console.log('🎨 Rendering manuscript:', {
+                  id: manuscript.id,
+                  status: manuscript.status,
+                  realtimeData,
+                  hasPercentage: realtimeData.percentage !== undefined,
+                  percentage: realtimeData.percentage
+                });
+              }
 
               return (
                 <div
