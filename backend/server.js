@@ -40,7 +40,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202', 'https://nimble-squirrel-6c165e.netlify.app', 'https://helpful-dusk-b0dacc.netlify.app'], // allow frontend ports
+  origin: ['http://localhost:3000', 'http://localhost:4200', 'http://localhost:4201', 'http://localhost:4202', 'https://epubconverter.netlify.app', 'https://helpful-dusk-b0dacc.netlify.app'], // allow frontend ports
   credentials: true
 }));
 
