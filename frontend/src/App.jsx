@@ -17,7 +17,7 @@ import SystemSettings from './pages/admin/SystemSettings';
 
 function App() {
   return (
-    <BrowserRouter basename="/xmlconverter">
+    <BrowserRouter>
       <NotificationProvider>
         <AuthProvider>
           <Notifications />

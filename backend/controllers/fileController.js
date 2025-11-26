@@ -1,4 +1,5 @@
 const File = require('../models/File');
+const User = require('../models/User');
 const path = require('path');
 const fs = require('fs');
 const { executeConverter, cleanupFile, cleanupDirectory } = require('../utils/docConverter');
@@ -9,6 +10,10 @@ const {
   downloadFromGridFS,
   downloadToLocal
 } = require('../utils/gridfs');
+const {
+  sendConversionSuccessEmail,
+  sendConversionFailureEmail
+} = require('../utils/emailService');
 
 // @desc    Upload and process file
 // @route   POST /api/files/upload
@@ -105,7 +110,8 @@ const processFileAsync = async (file) => {
     // Create output directory for this file
     outputDir = path.join(tempDir, 'output');
 
-    console.log(`Processing file ${file._id}: ${file.originalName}`);
+    const fileIdString = file._id.toString();
+    console.log(`Processing file ${fileIdString}: ${file.originalName}`);
 
     // Execute converter
     const result = await executeConverter(tempInputPath, outputDir);
@@ -143,6 +149,23 @@ const processFileAsync = async (file) => {
 
     console.log(`File ${file._id} processed successfully and uploaded to GridFS`);
 
+    // Send success email notification
+    try {
+      const user = await User.findById(file.uploadedBy);
+      if (user && user.email) {
+        await sendConversionSuccessEmail(
+          user.email,
+          file.originalName,
+          outputFilesWithGridFS,
+          file._id
+        );
+        console.log(`Success email sent to ${user.email}`);
+      }
+    } catch (emailError) {
+      console.error('Failed to send success email:', emailError);
+      // Don't fail the process if email fails
+    }
+
     // Clean up all temporary files
     try {
       await cleanupDirectory(tempDir);
@@ -169,9 +192,26 @@ const processFileAsync = async (file) => {
     // Try to update status to failed if file object is valid
     if (file && file.updateStatus) {
       try {
+        const errorMessage = error.message || error.error || 'Conversion failed';
         await file.updateStatus('failed', {
-          errorMessage: error.message || error.error || 'Conversion failed'
+          errorMessage: errorMessage
         });
+
+        // Send failure email notification
+        try {
+          const user = await User.findById(file.uploadedBy);
+          if (user && user.email) {
+            await sendConversionFailureEmail(
+              user.email,
+              file.originalName,
+              errorMessage
+            );
+            console.log(`Failure email sent to ${user.email}`);
+          }
+        } catch (emailError) {
+          console.error('Failed to send failure email:', emailError);
+          // Don't fail the process if email fails
+        }
       } catch (updateError) {
         console.error('Failed to update file status:', updateError);
       }
