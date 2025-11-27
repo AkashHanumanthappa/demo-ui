@@ -434,11 +434,49 @@ const deleteFile = async (req, res) => {
   }
 };
 
+// @desc    Get conversion dashboard files (xlsx files)
+// @route   GET /api/files/conversion-dashboard
+// @access  Private/Admin
+const getConversionDashboardFiles = async (req, res) => {
+  try {
+    // Query for files that have conversion_dashboard.xlsx in outputFiles array
+    const files = await File.find({
+      status: 'completed',
+      storedInGridFS: true,
+      'outputFiles.fileName': 'conversion_dashboard.xlsx'  // Exact match
+    })
+      .sort({ createdAt: -1 })
+      .populate('uploadedBy', 'username email');
+
+    console.log(`Found ${files.length} files with conversion_dashboard.xlsx`);
+
+    // Log file details for debugging
+    files.forEach(file => {
+      console.log(`File ID: ${file._id}, Original: ${file.originalName}`);
+    });
+
+    res.status(200).json({
+      success: true,
+      count: files.length,
+      data: { files }
+    });
+  } catch (error) {
+    console.error('Error fetching conversion dashboard files:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching conversion dashboard files',
+      error: error.message
+    });
+  }
+};
+
+
 module.exports = {
   uploadFile,
   getUserFiles,
   getAllFiles,
   getFileById,
   downloadOutputFile,
-  deleteFile
+  deleteFile,
+  getConversionDashboardFiles
 };
