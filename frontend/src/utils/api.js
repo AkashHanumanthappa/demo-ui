@@ -346,6 +346,15 @@ export const changePassword = async (currentPassword, newPassword) => {
   return response.data;
 };
 
+/**
+ * Get conversion dashboard files (Admin only)
+ * @param {Object} params - Query parameters (optional)
+ * @returns {Promise} - { files, count }
+ */
+export const getConversionDashboardFiles = async (params = {}) => {
+  const response = await api.get('/files/conversion-dashboard', { params });
+  return response.data;
+};
 
 // Export axios instance as default for custom requests
 export default api;

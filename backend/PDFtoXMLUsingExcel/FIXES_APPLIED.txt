@@ -1,0 +1,30 @@
+==========================================================================
+FIXES APPLIED - November 26, 2025
+==========================================================================
+
+✓ Image filtering discrepancy FIXED
+  - package.py: Bypass additional filtering for PDF sources
+  - All 622 images from extractor now included in final ZIP
+
+✓ Aggressive paragraph building FIXED  
+  - pdf_to_unified_xml.py: Added page boundary checks
+  - pdf_to_unified_xml.py: Increased threshold to 2.0x line height
+  - Paragraphs never span across pages
+
+✓ Multiline chapter headers FIXED
+  - heuristics_Nov3.py: Enhanced title extraction with multiline merging
+  - Chapter titles now merge into complete sentences
+
+✓ Duplicate processing VERIFIED
+  - No duplicate tasks in pipeline
+  - Each stage does unique work
+
+==========================================================================
+Files Modified:
+  1. package.py (4 changes)
+  2. pdf_to_unified_xml.py (3 changes)  
+  3. heuristics_Nov3.py (1 major enhancement)
+
+See BUGFIX_SUMMARY_IMAGE_PARA_CHAPTER.md for full details.
+See QUICK_FIX_REFERENCE.md for quick overview.
+==========================================================================

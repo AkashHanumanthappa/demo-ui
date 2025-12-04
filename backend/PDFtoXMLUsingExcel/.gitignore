@@ -1,0 +1,31 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Generated output files
+*_columns.xlsx
+*_unified.xml
+*_MultiMedia.xml
+*_MultiMedia/
+*_pdftohtml.xml
+*_pdftohtml_original.xml
+*_font_roles.json
+*_structured.xml
+*_TOC.xml
+*_package/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*_backup.xml

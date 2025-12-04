@@ -1,0 +1,194 @@
+================================================================================
+PARAGRAPH GROUPING - VISUAL GUIDE
+================================================================================
+
+YOUR CONCERNS (from your question):
+===================================
+
+1. "Are we grouping para just by looking into Reading Block?"
+   → NO! We check font, size, gaps, bullets WITHIN each block
+
+2. "Even within a reading block it is possible to have font changes"
+   → YES! Already handled (line 916)
+
+3. "New section start with vertical gaps"
+   → YES! Already handled (line 930)
+
+4. "Multiple sections being part of a readingblock"
+   → YES! Each gets its own paragraph via font/gap detection
+
+5. "Paragraph flowing across 2 pages with different reading block numbers"
+   → NOW FIXED! Post-processing merges cross-page paragraphs
+
+================================================================================
+VISUALIZATION: HOW IT WORKS
+================================================================================
+
+WITHIN READING BLOCK (Already Working):
+---------------------------------------
+
+Reading Block 1: [10 fragments]
+  
+  Fragment 1: "Body text" (Times-Roman, 12pt)
+  Fragment 2: "More body" (Times-Roman, 12pt)    → PARA 1 (same font/size)
+  Fragment 3: "text here" (Times-Roman, 12pt)    ┘
+  
+  Fragment 4: "HEADING" (Arial-Bold, 16pt)       → PARA 2 (font change!)
+  
+  Fragment 5: "Back to" (Times-Roman, 12pt)
+  Fragment 6: "body text" (Times-Roman, 12pt)    → PARA 3 (back to body)
+  
+  [Large vertical gap detected]
+  
+  Fragment 7: "New section" (Times-Roman, 12pt)
+  Fragment 8: "after gap" (Times-Roman, 12pt)    → PARA 4 (gap break)
+
+Result: 1 reading block → 4 paragraphs ✓
+
+ACROSS PAGES (Now Working):
+--------------------------
+
+Page 10:
+  Reading Block 1:
+    PARA A: "This sentence continues"
+            [Last fragment: no terminator, Times-Roman 12pt]
+
+Page 11:
+  Reading Block 1:
+    PARA B: "onto the next page."
+            [First fragment: Times-Roman 12pt, same column]
+
+OLD BEHAVIOR: 2 separate paragraphs ✗
+NEW BEHAVIOR: 1 merged paragraph ✓
+
+================================================================================
+MERGE DECISION TREE
+================================================================================
+
+                     [Last Para Page N]
+                            |
+                            v
+                    Consecutive pages?
+                      (N → N+1)
+                    /           \
+                  NO             YES
+                   |              |
+                 SKIP          Same column?
+                              /         \
+                            NO           YES
+                             |            |
+                           SKIP       Same font?
+                                     /        \
+                                   NO          YES
+                                    |           |
+                                  SKIP     Ends with .?!?
+                                          /           \
+                                        YES            NO
+                                         |             |
+                                       SKIP       Starts with
+                                                 "Chapter X"?
+                                                 /         \
+                                               YES          NO
+                                                |           |
+                                              SKIP        MERGE ✓
+
+================================================================================
+EXAMPLES
+================================================================================
+
+Example 1: MERGE (Continuous prose)
+------------------------------------
+Page 10: "The analysis continues on the next page to provide"
+Page 11: "additional context and supporting evidence here."
+
+✓ MERGED: Same font, no terminator, no section break
+
+Example 2: NO MERGE (Sentence end)
+-----------------------------------
+Page 10: "This completes the analysis."
+Page 11: "A new topic begins here."
+
+✗ NOT MERGED: Period indicates complete thought
+
+Example 3: NO MERGE (Heading)
+------------------------------
+Page 10: "...end of section"
+Page 11: "Chapter 2: Introduction"
+
+✗ NOT MERGED: Heading pattern detected
+
+Example 4: NO MERGE (Font change)
+----------------------------------
+Page 10: "body text" (Times-Roman, 12pt)
+Page 11: "HEADING" (Arial-Bold, 16pt)
+
+✗ NOT MERGED: Font size change
+
+Example 5: NO MERGE (Bullet list)
+----------------------------------
+Page 10: "...previous content"
+Page 11: "• First bullet item"
+
+✗ NOT MERGED: Bullet point starts new paragraph
+
+================================================================================
+OUTPUT LOGS
+================================================================================
+
+Before Fix:
+-----------
+Page 10: Grouping 146 fragments into paragraphs
+  Reading Block 1: Processing 1 fragments
+  Reading Block 1: Created 1 paragraphs
+Page 11: Grouping 89 fragments into paragraphs
+  Reading Block 1: Processing 1 fragments
+  Reading Block 1: Created 1 paragraphs
+
+[Paragraphs split at page boundary]
+
+After Fix:
+----------
+Phase 1: Creating paragraphs for all pages...
+  Page 10: Grouping 146 fragments into paragraphs
+    Reading Block 1: Processing 1 fragments
+    Reading Block 1: Created 1 paragraphs
+  Page 11: Grouping 89 fragments into paragraphs
+    Reading Block 1: Processing 1 fragments
+    Reading Block 1: Created 1 paragraphs
+
+Phase 2: Merging paragraphs across page boundaries...
+  Cross-page merge: Combined 3 paragraph(s) spanning page boundaries
+
+Phase 3: Generating unified XML...
+  [XML generated with merged paragraphs]
+
+================================================================================
+SUMMARY TABLE
+================================================================================
+
+Feature                     | Before Fix | After Fix
+----------------------------|------------|----------
+Font change detection       | ✓ Works    | ✓ Works
+Size change detection       | ✓ Works    | ✓ Works
+Vertical gap detection      | ✓ Works    | ✓ Works
+Bullet point detection      | ✓ Works    | ✓ Works
+Multiple sections per block | ✓ Works    | ✓ Works
+Cross-page paragraphs       | ✗ BROKEN   | ✓ FIXED
+
+================================================================================
+
+IMPLEMENTATION: Option 2 (Post-Processing Merge)
+- Safest approach
+- No changes to existing paragraph detection
+- Additional phase after all paragraphs created
+- Smart checks prevent incorrect merges
+
+FILES MODIFIED: pdf_to_unified_xml.py
+- Added: should_merge_cross_page_paragraphs() (lines 984-1093)
+- Added: merge_cross_page_paragraphs() (lines 1096-1163)
+- Modified: create_unified_xml() workflow (lines 1240-1310)
+
+BREAKING CHANGES: None
+PERFORMANCE: Minimal overhead (single pass after paragraph creation)
+
+================================================================================
