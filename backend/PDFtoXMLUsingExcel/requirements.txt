@@ -14,3 +14,6 @@ cffi>=1.15.0
 # For metadata processor (Excel support)
 xlrd>=2.0.0  # For .xls files (openpyxl handles .xlsx)
 lxml>=4.9.0  # For XML processing
+
+# Security - XML parsing (required by openpyxl)
+defusedxml>=0.7.0

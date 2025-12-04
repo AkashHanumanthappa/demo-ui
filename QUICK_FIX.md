@@ -2,33 +2,63 @@
 
 This guide addresses the errors you're currently experiencing with PDF and EPUB conversions.
 
-## Error 1: ModuleNotFoundError: No module named 'openpyxl' (PDF Converter)
+## Error 1: ModuleNotFoundError (PDF Converter)
+
+### Common errors:
+```
+ModuleNotFoundError: No module named 'openpyxl'
+ModuleNotFoundError: No module named 'defusedxml.ElementTree'
+ModuleNotFoundError: No module named 'PyMuPDF'
+```
 
 ### What's happening:
-The PDF converter Python script requires the `openpyxl` library, but it's not installed in your Python environment.
+The PDF converter Python script requires several libraries that aren't installed in your Python environment.
 
 ### Quick Fix:
 
 **Windows:**
 ```bash
 cd backend\PDFtoXMLUsingExcel
+
+# If using virtual environment (venv312, venv, etc.):
+venv312\Scripts\activate
+# OR
+venv\Scripts\activate
+
+# Install/reinstall all dependencies
 python -m pip install -r requirements.txt
+
+# Deactivate venv (if activated)
+deactivate
+
 cd ..\..
 ```
 
 **Linux/Mac:**
 ```bash
 cd backend/PDFtoXMLUsingExcel
+
+# If using virtual environment:
+source venv/bin/activate
+
+# Install/reinstall all dependencies
 python3 -m pip install -r requirements.txt
+
+# Deactivate venv (if activated)
+deactivate
+
 cd ../..
 ```
 
 ### What this installs:
 - openpyxl (Excel file support)
+- defusedxml (Secure XML parsing - required by openpyxl)
 - PyMuPDF (PDF parsing)
 - camelot-py (Table extraction)
 - pandas, numpy (Data processing)
 - And other required dependencies
+
+**Important:** If you see `defusedxml` errors, the requirements.txt has been updated to include it explicitly. Just reinstall dependencies.
 
 ---
 
@@ -146,9 +176,21 @@ To get your application working properly:
 
 ```bash
 cd backend/PDFtoXMLUsingExcel
+
+# If you have a virtual environment (venv312, venv), activate it first:
+# Windows:
+venv312\Scripts\activate  # or venv\Scripts\activate
+# Linux/Mac:
+# source venv/bin/activate
+
+# Install dependencies:
 python -m pip install -r requirements.txt  # Windows
 # OR
 python3 -m pip install -r requirements.txt  # Linux/Mac
+
+# Deactivate venv if you activated it:
+# deactivate
+
 cd ../..
 ```
 
