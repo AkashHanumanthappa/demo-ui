@@ -66,11 +66,20 @@ const executePDFConverter = async (inputFilePath, outputDir) => {
     const pdfPipelineDir = process.env.PDF_CONVERTER_DIR ||
       path.join(__dirname, '..', 'PDFtoXMLUsingExcel');
 
-    // Python executable - default to python3 (for Linux/AWS) or resolve from venv on Windows
-    const pythonPath = process.env.PDF_CONVERTER_PYTHON ||
-      (process.platform === 'win32'
-        ? path.join(pdfPipelineDir, 'venv', 'Scripts', 'python.exe')
-        : 'python3');
+    // Python executable - default to python3 (for Linux/AWS) or python (for Windows)
+    // Priority: env var > venv python > system python
+    let pythonPath = process.env.PDF_CONVERTER_PYTHON;
+
+    if (!pythonPath) {
+      if (process.platform === 'win32') {
+        // Windows: check venv first, then fall back to 'python'
+        const venvPython = path.join(pdfPipelineDir, 'venv', 'Scripts', 'python.exe');
+        pythonPath = fsSync.existsSync(venvPython) ? venvPython : 'python';
+      } else {
+        // Linux/Mac: use python3
+        pythonPath = 'python3';
+      }
+    }
     
     // Main script name (just the filename, NOT a path)
     const scriptName = process.env.PDF_CONVERTER_SCRIPT || 'pdf_to_unified_xml.py';
@@ -88,13 +97,13 @@ const executePDFConverter = async (inputFilePath, outputDir) => {
     console.log('Working directory:', pdfPipelineDir);
     console.log('═══════════════════════════════════════════');
 
-    // Check if Python executable exists
-    if (!fsSync.existsSync(pythonPath)) {
+    // Check if Python executable exists (only check if it's a full path)
+    if (path.isAbsolute(pythonPath) && !fsSync.existsSync(pythonPath)) {
       console.error('❌ Python executable not found!');
       console.error('Looking for:', pythonPath);
       return reject({
         success: false,
-        message: 'Python executable not found in virtual environment',
+        message: 'Python executable not found. Please install Python or set PDF_CONVERTER_PYTHON in .env',
         path: pythonPath
       });
     }
@@ -304,10 +313,19 @@ const executePDFConverter = async (inputFilePath, outputDir) => {
 const executeEPUBConverter = async (inputFilePath, outputDir) => {
   return new Promise((resolve, reject) => {
     // Get paths (relative to backend folder)
-    const pythonPath = process.env.CONVERTER_PYTHON ||
-      (process.platform === 'win32'
-        ? path.join(__dirname, '..', 'RittDocConverter', 'venv', 'Scripts', 'python.exe')
-        : 'python3');
+    // Priority: env var > venv python > system python
+    let pythonPath = process.env.CONVERTER_PYTHON;
+
+    if (!pythonPath) {
+      if (process.platform === 'win32') {
+        // Windows: check venv first, then fall back to 'python'
+        const venvPython = path.join(__dirname, '..', 'RittDocConverter', 'venv', 'Scripts', 'python.exe');
+        pythonPath = fsSync.existsSync(venvPython) ? venvPython : 'python';
+      } else {
+        // Linux/Mac: use python3
+        pythonPath = 'python3';
+      }
+    }
     const converterScriptPath = process.env.CONVERTER_SCRIPT_PATH ||
       path.join(__dirname, '..', 'RittDocConverter', 'integrated_pipeline.py');
 
