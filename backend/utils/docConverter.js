@@ -62,13 +62,15 @@ const executeConverter = async (inputFilePath, outputDir) => {
  */
 const executePDFConverter = async (inputFilePath, outputDir) => {
   return new Promise((resolve, reject) => {
-    // PDF pipeline directory
-    const pdfPipelineDir = process.env.PDF_CONVERTER_DIR || 
-      'C:\\Users\\DELL\\OneDrive\\Documents\\GitHub\\PDFtoXMLUsingExcel';
-    
-    // Python executable in virtual environment
-    const pythonPath = process.env.PDF_CONVERTER_PYTHON || 
-      path.join(pdfPipelineDir, 'venv', 'Scripts', 'python.exe');
+    // PDF pipeline directory (relative to backend folder)
+    const pdfPipelineDir = process.env.PDF_CONVERTER_DIR ||
+      path.join(__dirname, '..', 'PDFtoXMLUsingExcel');
+
+    // Python executable - default to python3 (for Linux/AWS) or resolve from venv on Windows
+    const pythonPath = process.env.PDF_CONVERTER_PYTHON ||
+      (process.platform === 'win32'
+        ? path.join(pdfPipelineDir, 'venv', 'Scripts', 'python.exe')
+        : 'python3');
     
     // Main script name (just the filename, NOT a path)
     const scriptName = process.env.PDF_CONVERTER_SCRIPT || 'pdf_to_unified_xml.py';
@@ -301,10 +303,13 @@ const executePDFConverter = async (inputFilePath, outputDir) => {
  */
 const executeEPUBConverter = async (inputFilePath, outputDir) => {
   return new Promise((resolve, reject) => {
-    // Get paths
-    const pythonPath = process.env.CONVERTER_PYTHON || 'python';
+    // Get paths (relative to backend folder)
+    const pythonPath = process.env.CONVERTER_PYTHON ||
+      (process.platform === 'win32'
+        ? path.join(__dirname, '..', 'RittDocConverter', 'venv', 'Scripts', 'python.exe')
+        : 'python3');
     const converterScriptPath = process.env.CONVERTER_SCRIPT_PATH ||
-      path.join(__dirname, '../../RittDocConverter/integrated_pipeline.py');
+      path.join(__dirname, '..', 'RittDocConverter', 'integrated_pipeline.py');
 
     console.log('═══════════════════════════════════════════');
     console.log('Starting EPUB Conversion Pipeline (RittDocConverter)');
