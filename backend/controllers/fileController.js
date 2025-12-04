@@ -1,4 +1,5 @@
 const File = require('../models/File');
+const User = require('../models/User');
 const path = require('path');
 const fs = require('fs');
 const { executeConverter, cleanupFile, cleanupDirectory } = require('../utils/docConverter');
@@ -9,6 +10,10 @@ const {
   downloadFromGridFS,
   downloadToLocal
 } = require('../utils/gridfs');
+const {
+  sendConversionSuccessEmail,
+  sendConversionFailureEmail
+} = require('../utils/emailService');
 
 // @desc    Upload and process file
 // @route   POST /api/files/upload
@@ -105,9 +110,10 @@ const processFileAsync = async (file) => {
     // Create output directory for this file
     outputDir = path.join(tempDir, 'output');
 
-    console.log(`Processing file ${file._id}: ${file.originalName}`);
+    const fileIdString = file._id.toString();
+    console.log(`Processing file ${fileIdString}: ${file.originalName}`);
 
-    // Execute converter
+    // Execute converter (automatically detects PDF or EPUB)
     const result = await executeConverter(tempInputPath, outputDir);
 
     // Upload output files to GridFS
@@ -117,7 +123,7 @@ const processFileAsync = async (file) => {
       {
         sourceFileId: file._id,
         uploadedBy: file.uploadedBy,
-        conversionType: 'RittDocConverter'
+        conversionType: result.converterType || 'Unknown'  // ✅ CHANGE #1: Dynamic converter type
       }
     );
 
@@ -136,12 +142,29 @@ const processFileAsync = async (file) => {
       outputPath: null,  // Not using local storage anymore
       outputFiles: outputFilesWithGridFS,
       conversionMetadata: {
-        conversionType: 'RittDocConverter',
+        conversionType: result.converterType || 'Unknown',  // ✅ CHANGE #2: Dynamic converter type
         outputFormats: result.outputFiles.map(f => f.fileType)
       }
     });
 
     console.log(`File ${file._id} processed successfully and uploaded to GridFS`);
+
+    // Send success email notification
+    try {
+      const user = await User.findById(file.uploadedBy);
+      if (user && user.email) {
+        await sendConversionSuccessEmail(
+          user.email,
+          file.originalName,
+          outputFilesWithGridFS,
+          file._id
+        );
+        console.log(`Success email sent to ${user.email}`);
+      }
+    } catch (emailError) {
+      console.error('Failed to send success email:', emailError);
+      // Don't fail the process if email fails
+    }
 
     // Clean up all temporary files
     try {
@@ -169,9 +192,26 @@ const processFileAsync = async (file) => {
     // Try to update status to failed if file object is valid
     if (file && file.updateStatus) {
       try {
+        const errorMessage = error.message || error.error || 'Conversion failed';
         await file.updateStatus('failed', {
-          errorMessage: error.message || error.error || 'Conversion failed'
+          errorMessage: errorMessage
         });
+
+        // Send failure email notification
+        try {
+          const user = await User.findById(file.uploadedBy);
+          if (user && user.email) {
+            await sendConversionFailureEmail(
+              user.email,
+              file.originalName,
+              errorMessage
+            );
+            console.log(`Failure email sent to ${user.email}`);
+          }
+        } catch (emailError) {
+          console.error('Failed to send failure email:', emailError);
+          // Don't fail the process if email fails
+        }
       } catch (updateError) {
         console.error('Failed to update file status:', updateError);
       }
@@ -394,11 +434,49 @@ const deleteFile = async (req, res) => {
   }
 };
 
+// @desc    Get conversion dashboard files (xlsx files)
+// @route   GET /api/files/conversion-dashboard
+// @access  Private/Admin
+const getConversionDashboardFiles = async (req, res) => {
+  try {
+    // Query for files that have conversion_dashboard.xlsx in outputFiles array
+    const files = await File.find({
+      status: 'completed',
+      storedInGridFS: true,
+      'outputFiles.fileName': 'conversion_dashboard.xlsx'  // Exact match
+    })
+      .sort({ createdAt: -1 })
+      .populate('uploadedBy', 'username email');
+
+    console.log(`Found ${files.length} files with conversion_dashboard.xlsx`);
+
+    // Log file details for debugging
+    files.forEach(file => {
+      console.log(`File ID: ${file._id}, Original: ${file.originalName}`);
+    });
+
+    res.status(200).json({
+      success: true,
+      count: files.length,
+      data: { files }
+    });
+  } catch (error) {
+    console.error('Error fetching conversion dashboard files:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching conversion dashboard files',
+      error: error.message
+    });
+  }
+};
+
+
 module.exports = {
   uploadFile,
   getUserFiles,
   getAllFiles,
   getFileById,
   downloadOutputFile,
-  deleteFile
+  deleteFile,
+  getConversionDashboardFiles
 };

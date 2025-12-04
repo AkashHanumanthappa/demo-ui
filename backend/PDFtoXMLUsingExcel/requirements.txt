@@ -1,0 +1,16 @@
+# Core dependencies
+openpyxl>=3.0.0
+PyMuPDF>=1.23.0
+camelot-py[base]>=0.11.0
+
+# Required by camelot
+pypdf>=3.0.0
+pandas>=1.5.0
+numpy>=1.23.0
+
+# For cryptography support
+cffi>=1.15.0
+
+# For metadata processor (Excel support)
+xlrd>=2.0.0  # For .xls files (openpyxl handles .xlsx)
+lxml>=4.9.0  # For XML processing
