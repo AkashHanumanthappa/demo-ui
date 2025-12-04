@@ -153,13 +153,17 @@ const processFileAsync = async (file) => {
     try {
       const user = await User.findById(file.uploadedBy);
       if (user && user.email) {
-        await sendConversionSuccessEmail(
+        const emailResult = await sendConversionSuccessEmail(
           user.email,
           file.originalName,
           outputFilesWithGridFS,
           file._id
         );
-        console.log(`Success email sent to ${user.email}`);
+        if (emailResult.success) {
+          console.log(`Success email sent to ${user.email}`);
+        } else {
+          console.error(`Failed to send success email to ${user.email}:`, emailResult.error || emailResult.message);
+        }
       }
     } catch (emailError) {
       console.error('Failed to send success email:', emailError);
@@ -201,12 +205,16 @@ const processFileAsync = async (file) => {
         try {
           const user = await User.findById(file.uploadedBy);
           if (user && user.email) {
-            await sendConversionFailureEmail(
+            const emailResult = await sendConversionFailureEmail(
               user.email,
               file.originalName,
               errorMessage
             );
-            console.log(`Failure email sent to ${user.email}`);
+            if (emailResult.success) {
+              console.log(`Failure email sent to ${user.email}`);
+            } else {
+              console.error(`Failed to send failure email to ${user.email}:`, emailResult.error || emailResult.message);
+            }
           }
         } catch (emailError) {
           console.error('Failed to send failure email:', emailError);
