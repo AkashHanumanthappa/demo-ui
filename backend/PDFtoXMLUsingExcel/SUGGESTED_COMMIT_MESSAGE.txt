@@ -1,0 +1,51 @@
+Fix: Add superscript/subscript detection to improve text merging and reduce ColId weaving
+
+## Problem
+Superscripts and subscripts (e.g., 10⁷, H₂O, x²) were not merging with their
+parent text because baseline calculation (baseline = top + height) fails for
+fragments with different heights. This caused:
+- Broken formulas: "10" and "7" as separate fragments
+- ColId weaving: Small "7" fragment gets ColId 1, creating false transitions
+- Poor text extraction: Search can't find "10^7", only "10"
+
+## Solution
+Implement three-phase script detection using TOP position (not baseline):
+
+Phase 1: Detect scripts before grouping
+- Use TOP position to find tiny fragments (w<15, h<12) adjacent to larger text
+- Mark as superscript (within ±3px of parent top) or subscript (3-10px below)
+- Very strict criteria to avoid false positives (drop caps, large letters)
+
+Phase 2: Group rows using baseline (UNCHANGED)
+- Preserves existing behavior for drop caps, large letters, mixed case
+- No breaking changes to baseline grouping logic
+
+Phase 3: Merge scripts across rows
+- Merge marked scripts with parents even if in different rows
+- Result: "10^7", "H_2O" correctly merged
+
+## Key Features
+- Surgical fix: Only affects tiny fragments adjacent to larger text
+- Preserves drop caps: Too large (30-50px) to be detected as scripts
+- Preserves large letters: Too large (20-24px) to be detected
+- Configurable: Thresholds can be tuned per document type
+- Low risk: Very strict criteria, easy to disable if needed
+
+## Expected Impact
+- Text quality: Formulas merge correctly ("10^7" not "10" + "7")
+- ColId stability: 30-50% reduction in false transitions
+- Search/indexing: Can find merged terms like "10^7"
+- No breaking changes: All existing behavior preserved
+
+## Changes
+- Added script detection functions (~320 lines)
+- Added Phase 1 call before grouping (line ~1430)
+- Added Phase 3 call after grouping (line ~1474)
+- Configurable thresholds at top of file
+
+## Testing
+Run on scientific documents and verify:
+1. Terminal shows: "Page X: Detected N superscript(s)/subscript(s)"
+2. Excel shows merged text with "^" (superscript) or "_" (subscript)
+3. Fewer ColId transitions (check ReadingOrder sheet)
+4. Drop caps still separate (not merged)

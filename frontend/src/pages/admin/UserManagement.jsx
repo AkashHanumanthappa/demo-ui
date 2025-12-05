@@ -56,7 +56,7 @@ export const UserManagement = () => {
     if (!userToDelete) return;
 
     try {
-      await deleteUserApi(userToDelete.id);
+      await deleteUserApi(userToDelete._id);
       showSuccess('User Deleted', `User ${userToDelete.email} has been successfully deleted`);
       setShowDeleteConfirm(false);
       setUserToDelete(null);

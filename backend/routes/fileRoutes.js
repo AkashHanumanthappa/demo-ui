@@ -6,7 +6,8 @@ const {
   getAllFiles,
   getFileById,
   downloadOutputFile,
-  deleteFile
+  deleteFile,
+  getConversionDashboardFiles
 } = require('../controllers/fileController');
 const { authenticate, authorizeAdmin } = require('../middleware/auth');
 const { upload, handleMulterError } = require('../middleware/upload');
@@ -19,6 +20,10 @@ router.post('/upload', upload.single('file'), handleMulterError, uploadFile);
 
 // Get user's files
 router.get('/', getUserFiles);
+
+
+router.get('/conversion-dashboard', authorizeAdmin, getConversionDashboardFiles);
+
 
 // Get all files (Admin only)
 router.get('/all', authorizeAdmin, getAllFiles);

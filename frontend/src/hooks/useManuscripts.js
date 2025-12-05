@@ -40,71 +40,78 @@ export const useManuscripts = () => {
     }
   }, []);
 
-  const uploadManuscript = useCallback(
-    async (file) => {
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
+const uploadManuscript = useCallback(
+  async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-        const manuscriptId = `temp-${Date.now()}`;
+      const manuscriptId = `temp-${Date.now()}`;
 
-        // Upload with progress tracking
-        const response = await api.post('/files/upload', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-          onUploadProgress: (progressEvent) => {
-            const progress = Math.round(
-              (progressEvent.loaded * 100) / progressEvent.total
-            );
-            setUploadProgress((prev) => ({
-              ...prev,
-              [manuscriptId]: {
-                progress,
-                loaded: progressEvent.loaded,
-                total: progressEvent.total,
-              },
-            }));
-          },
+      // Upload with progress tracking and 5-minute timeout
+      const response = await api.post('/files/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 300000, // 5 minutes in milliseconds (5 * 60 * 1000)
+        onUploadProgress: (progressEvent) => {
+          const progress = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total
+          );
+          setUploadProgress((prev) => ({
+            ...prev,
+            [manuscriptId]: {
+              progress,
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+            },
+          }));
+        },
+      });
+
+      const uploadedFile = response.data.data.file;
+
+      // Transform backend response to frontend format
+      const newManuscript = {
+        id: uploadedFile._id,
+        file_name: uploadedFile.originalName,
+        file_size: uploadedFile.fileSize,
+        original_format: uploadedFile.fileType,
+        status: uploadedFile.status,
+        created_at: uploadedFile.createdAt,
+        updated_at: uploadedFile.updatedAt,
+        conversion_time: uploadedFile.conversionMetadata?.processingTime,
+        error_message: uploadedFile.errorMessage,
+        output_formats: uploadedFile.outputFiles?.map(f => f.fileType) || [],
+        output_files: uploadedFile.outputFiles || [],
+      };
+
+      // Add to manuscripts list
+      setManuscripts((prev) => [newManuscript, ...prev]);
+
+      // Clear upload progress
+      setTimeout(() => {
+        setUploadProgress((prev) => {
+          const newProgress = { ...prev };
+          delete newProgress[manuscriptId];
+          return newProgress;
         });
+      }, 1000);
 
-        const uploadedFile = response.data.data.file;
-
-        // Transform backend response to frontend format
-        const newManuscript = {
-          id: uploadedFile._id,
-          file_name: uploadedFile.originalName,
-          file_size: uploadedFile.fileSize,
-          original_format: uploadedFile.fileType,
-          status: uploadedFile.status,
-          created_at: uploadedFile.createdAt,
-          updated_at: uploadedFile.updatedAt,
-          conversion_time: uploadedFile.conversionMetadata?.processingTime,
-          error_message: uploadedFile.errorMessage,
-          output_formats: uploadedFile.outputFiles?.map(f => f.fileType) || [],
-          output_files: uploadedFile.outputFiles || [],
-        };
-
-        // Add to manuscripts list
-        setManuscripts((prev) => [newManuscript, ...prev]);
-
-        // Clear upload progress
-        setTimeout(() => {
-          setUploadProgress((prev) => {
-            const newProgress = { ...prev };
-            delete newProgress[manuscriptId];
-            return newProgress;
-          });
-        }, 1000);
-
-        return newManuscript;
-      } catch (error) {
-        console.error('Upload failed:', error);
-        throw new Error(error.response?.data?.message || error.message || 'Upload failed');
+      return newManuscript;
+    } catch (error) {
+      console.error('Upload failed:', error);
+      
+      // Handle timeout error specifically
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        throw new Error('Upload timeout: The file upload took longer than 5 minutes. Please try again with a smaller file or check your internet connection.');
       }
-    },
-    []
-  );
+      
+      throw new Error(error.response?.data?.message || error.message || 'Upload failed');
+    }
+  },
+  []
+);
 
   const getDownloadUrl = useCallback(async (manuscriptId, fileName) => {
     try {

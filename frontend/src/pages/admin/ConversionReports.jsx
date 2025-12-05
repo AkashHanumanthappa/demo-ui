@@ -1,201 +1,275 @@
-import { useState, useEffect } from 'react';
-import { getAllFiles, getAllUsers } from '../../utils/api';
+import { useState, useEffect, useRef } from 'react';
+import { getConversionDashboardFiles } from '../../utils/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import Navigation from '../../components/shared/Navigation';
 import Loading from '../../components/shared/Loading';
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 
-export const ConversionReports = () => {
+export const ConversionDashboard = () => {
   const { handleError, showSuccess } = useNotification();
-  const [files, setFiles] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [dashboardFiles, setDashboardFiles] = useState([]);
+  const [allExcelData, setAllExcelData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const [dateRange, setDateRange] = useState({
-    start: '',
-    end: ''
-  });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFileType, setSelectedFileType] = useState('all');
+  const [availableFileTypes, setAvailableFileTypes] = useState([]);
+  
+  // Sorting state
+  const [sortColumn, setSortColumn] = useState(null);
+  const [sortDirection, setSortDirection] = useState('asc'); // 'asc' or 'desc'
+  const [openColumnMenu, setOpenColumnMenu] = useState(null);
+  
+  const menuRef = useRef(null);
 
   useEffect(() => {
-    loadReportData();
+    loadDashboardFiles();
   }, []);
 
-  const loadReportData = async () => {
+  useEffect(() => {
+    applyFilters();
+  }, [searchTerm, selectedFileType, allExcelData, sortColumn, sortDirection]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenColumnMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const loadDashboardFiles = async () => {
     try {
       setLoading(true);
-      const [filesResponse, usersResponse] = await Promise.all([
-        getAllFiles(),
-        getAllUsers()
-      ]);
-
-      setFiles(filesResponse.data?.files || []);
-      setUsers(usersResponse.data?.users || []);
+      console.log('🔍 Fetching conversion dashboard files...');
+      
+      const response = await getConversionDashboardFiles();
+      const files = response.data?.files || [];
+      console.log(`✅ Found ${files.length} files`);
+      
+      setDashboardFiles(files);
+      
+      // Extract unique file types
+      const fileTypes = new Set();
+      files.forEach(file => {
+        if (file.fileType) {
+          fileTypes.add(file.fileType.toUpperCase());
+        }
+      });
+      setAvailableFileTypes(Array.from(fileTypes).sort());
+      
+      // Load all Excel files
+      if (files.length > 0) {
+        await loadAllExcelFiles(files);
+      }
+      
     } catch (error) {
-      handleError(error, 'Failed to load report data');
+      console.error('❌ Error loading dashboard files:', error);
+      handleError(error, 'Failed to load dashboard files');
     } finally {
       setLoading(false);
     }
   };
 
-  const getUserName = (userId) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.username : 'Unknown';
+  const loadAllExcelFiles = async (files) => {
+    try {
+      const allData = [];
+      const sheets = new Set();
+
+      for (const file of files) {
+        console.log('📂 Loading file:', file.originalName);
+
+        const fileToDownload = file.outputFiles?.find(f => 
+          f.fileName === 'conversion_dashboard.xlsx'
+        );
+        
+        if (!fileToDownload) {
+          console.warn('⚠️ No conversion_dashboard.xlsx in:', file.originalName);
+          continue;
+        }
+
+        const token = localStorage.getItem('manuscript_token');
+        const apiUrl = 'http://localhost:5000/api';
+        const downloadUrl = `${apiUrl}/files/${file._id}/download/${encodeURIComponent(fileToDownload.fileName)}`;
+
+        const response = await axios.get(downloadUrl, {
+          responseType: 'arraybuffer',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const data = new Uint8Array(response.data);
+        const workbook = XLSX.read(data, { type: 'array' });
+
+        workbook.SheetNames.forEach((sheetName) => {
+          sheets.add(sheetName);
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+            header: 1,
+            defval: '',
+            blankrows: false
+          });
+
+          if (jsonData.length > 1) {
+            const headers = jsonData[0];
+            const rows = jsonData.slice(1);
+
+            rows.forEach((row) => {
+              const rowData = {
+                fileName: file.originalName,
+                fileId: file._id,
+                fileType: file.fileType ? file.fileType.toUpperCase() : 'UNKNOWN',
+                sheetName: sheetName,
+                uploadedBy: file.uploadedBy?.username || 'Unknown',
+                uploadDate: file.createdAt,
+                ...Object.fromEntries(
+                  headers.map((header, index) => [header, row[index]])
+                )
+              };
+              allData.push(rowData);
+            });
+          }
+        });
+      }
+
+      console.log('✅ Loaded all Excel data:', allData.length, 'rows');
+      setAllExcelData(allData);
+      setFilteredData(allData);
+
+    } catch (error) {
+      console.error('❌ Error loading Excel files:', error);
+      handleError(error, 'Failed to load Excel files');
+    }
   };
 
-  const getUserEmail = (userId) => {
-    const user = users.find(u => u.id === userId);
-    return user ? user.email : 'N/A';
+  const applyFilters = () => {
+    let filtered = [...allExcelData];
+
+    // Filter by file type
+    if (selectedFileType !== 'all') {
+      filtered = filtered.filter(row => row.fileType === selectedFileType);
+    }
+
+    // Filter by search term
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(row => {
+        return Object.values(row).some(value => 
+          value && value.toString().toLowerCase().includes(search)
+        );
+      });
+    }
+
+    // Apply sorting
+    if (sortColumn) {
+      filtered.sort((a, b) => {
+        let aVal = a[sortColumn];
+        let bVal = b[sortColumn];
+
+        // Handle null/undefined values
+        if (aVal === null || aVal === undefined || aVal === '') aVal = '';
+        if (bVal === null || bVal === undefined || bVal === '') bVal = '';
+
+        // Convert to comparable values
+        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+        // Compare
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    setFilteredData(filtered);
+  };
+
+  const handleSort = (column, direction) => {
+    setSortColumn(column);
+    setSortDirection(direction);
+    setOpenColumnMenu(null);
+    showSuccess(`Sorted by ${column} (${direction === 'asc' ? 'A→Z' : 'Z→A'})`);
+  };
+
+  const clearSort = () => {
+    setSortColumn(null);
+    setSortDirection('asc');
+    setOpenColumnMenu(null);
+    showSuccess('Sorting cleared');
+  };
+
+  const formatCellValue = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+    if (typeof value === 'number') return value.toLocaleString();
+    if (value instanceof Date) return value.toLocaleDateString();
+    return String(value);
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      minute: '2-digit'
     });
   };
 
-  const formatFileSize = (bytes) => {
-    if (!bytes || bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-  };
-
-  const getFilteredFiles = () => {
-    if (!dateRange.start && !dateRange.end) return files;
-
-    return files.filter(file => {
-      const fileDate = new Date(file.created_at);
-      const startDate = dateRange.start ? new Date(dateRange.start) : null;
-      const endDate = dateRange.end ? new Date(dateRange.end + 'T23:59:59') : null;
-
-      if (startDate && fileDate < startDate) return false;
-      if (endDate && fileDate > endDate) return false;
-      return true;
-    });
-  };
-
-  const exportToExcel = async () => {
-    try {
-      setExporting(true);
-
-      const filteredFiles = getFilteredFiles();
-
-      if (filteredFiles.length === 0) {
-        handleError(new Error('No data to export'), 'No data available');
-        return;
-      }
-
-      // Prepare data for Excel export
-      const exportData = filteredFiles.map((file, index) => {
-        const outputFormats = file.output_files 
-          ? file.output_files.map(f => {
-              const ext = f.split('.').pop().toUpperCase();
-              return ext;
-            }).join(', ')
-          : 'N/A';
-
-        return {
-          'S.No': index + 1,
-          'File Name': file.original_filename || 'Unknown',
-          'File Size': formatFileSize(file.file_size),
-          'Status': file.status ? file.status.toUpperCase() : 'UNKNOWN',
-          'User Name': getUserName(file.user_id),
-          'User Email': getUserEmail(file.user_id),
-          'Upload Date': formatDate(file.created_at),
-          'Last Updated': formatDate(file.updated_at),
-          'Output Formats': outputFormats,
-          'Output Files Count': file.output_files ? file.output_files.length : 0,
-          'Processing Time': file.processing_time || 'N/A',
-          'Error Message': file.error_message || 'None',
-          'File ID': file.id,
-          'Storage Path': file.file_path || 'N/A'
-        };
-      });
-
-      // Create summary sheet data
-      const summaryData = [
-        { Metric: 'Total Files', Value: filteredFiles.length },
-        { Metric: 'Completed Conversions', Value: filteredFiles.filter(f => f.status === 'completed').length },
-        { Metric: 'Failed Conversions', Value: filteredFiles.filter(f => f.status === 'failed').length },
-        { Metric: 'Processing Files', Value: filteredFiles.filter(f => f.status === 'processing' || f.status === 'uploaded').length },
-        { Metric: 'Total Users', Value: users.length },
-        { Metric: 'Report Generated', Value: new Date().toLocaleString() },
-        { Metric: 'Date Range', Value: dateRange.start || dateRange.end ? `${dateRange.start || 'Beginning'} to ${dateRange.end || 'Present'}` : 'All Time' }
-      ];
-
-      // Create status breakdown
-      const statusBreakdown = [
-        { Status: 'Uploaded', Count: filteredFiles.filter(f => f.status === 'uploaded').length },
-        { Status: 'Processing', Count: filteredFiles.filter(f => f.status === 'processing').length },
-        { Status: 'Completed', Count: filteredFiles.filter(f => f.status === 'completed').length },
-        { Status: 'Failed', Count: filteredFiles.filter(f => f.status === 'failed').length }
-      ];
-
-      // Create user activity breakdown
-      const userActivity = users.map(user => {
-        const userFiles = filteredFiles.filter(f => f.user_id === user.id);
-        return {
-          'User Name': user.username,
-          'Email': user.email,
-          'Role': user.role.toUpperCase(),
-          'Total Files': userFiles.length,
-          'Completed': userFiles.filter(f => f.status === 'completed').length,
-          'Failed': userFiles.filter(f => f.status === 'failed').length,
-          'Processing': userFiles.filter(f => f.status === 'processing' || f.status === 'uploaded').length
-        };
-      }).filter(u => u['Total Files'] > 0);
-
-      // Create workbook
-      const workbook = XLSX.utils.book_new();
-
-      // Add Summary sheet
-      const summarySheet = XLSX.utils.json_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
-
-      // Add Status Breakdown sheet
-      const statusSheet = XLSX.utils.json_to_sheet(statusBreakdown);
-      XLSX.utils.book_append_sheet(workbook, statusSheet, 'Status Breakdown');
-
-      // Add User Activity sheet
-      const userSheet = XLSX.utils.json_to_sheet(userActivity);
-      XLSX.utils.book_append_sheet(workbook, userSheet, 'User Activity');
-
-      // Add Detailed Data sheet
-      const detailSheet = XLSX.utils.json_to_sheet(exportData);
-      XLSX.utils.book_append_sheet(workbook, detailSheet, 'Conversion Details');
-
-      // Generate filename with timestamp
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-      const filename = `R2_Conversion_Report_${timestamp}.xlsx`;
-
-      // Write file
-      XLSX.writeFile(workbook, filename);
-
-      showSuccess('Export Successful', `Report exported as ${filename}`);
-
-    } catch (error) {
-      handleError(error, 'Failed to export report');
-    } finally {
-      setExporting(false);
+  const exportToExcel = () => {
+    if (filteredData.length === 0) {
+      showSuccess('No data to export');
+      return;
     }
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(filteredData);
+    XLSX.utils.book_append_sheet(wb, ws, 'Dashboard Data');
+    
+    const fileName = `conversion_dashboard_export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showSuccess(`Exported ${filteredData.length} rows to ${fileName}`);
   };
 
-  const filteredFiles = getFilteredFiles();
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSelectedFileType('all');
+    setSortColumn(null);
+    setSortDirection('asc');
+  };
 
-  const stats = {
-    total: filteredFiles.length,
-    completed: filteredFiles.filter(f => f.status === 'completed').length,
-    failed: filteredFiles.filter(f => f.status === 'failed').length,
-    processing: filteredFiles.filter(f => f.status === 'processing' || f.status === 'uploaded').length,
-    totalSize: filteredFiles.reduce((sum, f) => sum + (f.file_size || 0), 0)
+  // Get all unique column headers
+  const getTableHeaders = () => {
+    if (filteredData.length === 0) return [];
+    
+    const allKeys = new Set();
+    filteredData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (!['fileId'].includes(key)) {
+          allKeys.add(key);
+        }
+      });
+    });
+    
+    return Array.from(allKeys);
+  };
+
+  const headers = getTableHeaders();
+
+  // Get file type badge color
+  const getFileTypeBadgeColor = (fileType) => {
+    const colors = {
+      'EPUB': 'bg-purple-100 text-purple-800',
+      'PDF': 'bg-red-100 text-red-800',
+      'DOCX': 'bg-blue-100 text-blue-800',
+      'XML': 'bg-green-100 text-green-800',
+      'HTML': 'bg-orange-100 text-orange-800',
+    };
+    return colors[fileType] || 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -204,10 +278,24 @@ export const ConversionReports = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
-            Conversion Reports
-          </h1>
-          <p className="text-gray-600">Generate and export detailed conversion reports</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                Conversion Dashboard
+              </h1>
+              <p className="text-gray-600">View and analyze all conversion dashboard data</p>
+            </div>
+            <button
+              onClick={loadDashboardFiles}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -216,227 +304,253 @@ export const ConversionReports = () => {
           </div>
         ) : (
           <>
-            {/* Export Controls */}
-            <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex-1">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Filter & Export</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        value={dateRange.start}
-                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        End Date
-                      </label>
-                      <input
-                        type="date"
-                        value={dateRange.end}
-                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      />
-                    </div>
+            {/* Filters Section */}
+            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                {/* Search */}
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Search
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="Search in all columns..."
+                      className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    <svg className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3">
+                {/* File Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    File Type
+                  </label>
+                  <select
+                    value={selectedFileType}
+                    onChange={(e) => setSelectedFileType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="all">All Types ({availableFileTypes.length})</option>
+                    {availableFileTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 items-end">
+                  <button
+                    onClick={clearFilters}
+                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Clear Filters
+                  </button>
                   <button
                     onClick={exportToExcel}
-                    disabled={exporting || stats.total === 0}
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl"
+                    disabled={filteredData.length === 0}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {exporting ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Exporting...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Export to Excel
-                      </>
-                    )}
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export
                   </button>
-                  
-                  {(dateRange.start || dateRange.end) && (
-                    <button
-                      onClick={() => setDateRange({ start: '', end: '' })}
-                      className="px-6 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
-                    >
-                      Clear Filters
-                    </button>
+                </div>
+              </div>
+
+              {/* Stats */}
+              <div className="pt-4 border-t border-gray-200">
+                <div className="flex flex-wrap items-center gap-6 text-sm text-gray-600">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="font-medium">{allExcelData.length}</span> total rows
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span className="font-medium">{filteredData.length}</span> filtered rows
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    <span className="font-medium">{dashboardFiles.length}</span> files
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                    </svg>
+                    <span className="font-medium">{availableFileTypes.length}</span> file types
+                  </div>
+                  {sortColumn && (
+                    <div className="flex items-center gap-2 text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+                      </svg>
+                      Sorted by: {sortColumn} ({sortDirection === 'asc' ? 'A→Z' : 'Z→A'})
+                    </div>
+                  )}
+                  {(searchTerm || selectedFileType !== 'all') && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-medium">
+                      Filters Active
+                    </span>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
-                <p className="text-sm font-medium text-gray-600 mb-1">Total Files</p>
-                <p className="text-3xl font-bold text-purple-600">{stats.total}</p>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
-                <p className="text-sm font-medium text-gray-600 mb-1">Completed</p>
-                <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
-                <p className="text-sm font-medium text-gray-600 mb-1">Processing</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.processing}</p>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-red-500">
-                <p className="text-sm font-medium text-gray-600 mb-1">Failed</p>
-                <p className="text-3xl font-bold text-red-600">{stats.failed}</p>
-              </div>
-
-              <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-indigo-500">
-                <p className="text-sm font-medium text-gray-600 mb-1">Total Size</p>
-                <p className="text-2xl font-bold text-indigo-600">{formatFileSize(stats.totalSize)}</p>
-              </div>
-            </div>
-
-            {/* Export Information */}
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg p-6 mb-8 text-white">
-              <div className="flex items-start gap-4">
-                <div className="bg-white bg-opacity-20 rounded-lg p-3">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-2">Excel Export Information</h3>
-                  <p className="text-purple-100 mb-3">
-                    The exported Excel file will contain multiple sheets with comprehensive data:
-                  </p>
-                  <ul className="space-y-2 text-sm text-purple-100">
-                    <li className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span><strong>Summary:</strong> Overall statistics and metrics</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span><strong>Status Breakdown:</strong> Conversion status distribution</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span><strong>User Activity:</strong> Per-user conversion statistics</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span><strong>Conversion Details:</strong> Complete file information and validation data</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Files Preview */}
+            {/* Table */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-xl font-bold text-gray-900">Files Preview</h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Showing {filteredFiles.length} {filteredFiles.length === 1 ? 'file' : 'files'}
-                  {(dateRange.start || dateRange.end) && ' (filtered)'}
-                </p>
-              </div>
-
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        File Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        User
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Size
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredFiles.slice(0, 10).map((file) => (
-                      <tr key={file.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {file.original_filename}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {getUserName(file.user_id)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                            file.status === 'completed' ? 'bg-green-100 text-green-800' :
-                            file.status === 'failed' ? 'bg-red-100 text-red-800' :
-                            file.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {file.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          {formatFileSize(file.file_size)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(file.created_at)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {filteredFiles.length === 0 && (
-                  <div className="text-center py-12">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {filteredData.length === 0 ? (
+                  <div className="text-center py-16">
+                    <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">No files found</h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {(dateRange.start || dateRange.end) 
-                        ? 'Try adjusting your date range filter.'
-                        : 'No conversion data available yet.'}
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">No Data Found</h3>
+                    <p className="mt-2 text-sm text-gray-500">
+                      {allExcelData.length === 0 
+                        ? 'No conversion dashboard files available.' 
+                        : 'Try adjusting your filters.'}
                     </p>
                   </div>
-                )}
+                ) : (
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gradient-to-r from-purple-600 to-blue-600 sticky top-0 z-10">
+                      <tr>
+                        {headers.map((header, index) => (
+                          <th
+                            key={index}
+                            className="px-6 py-3 text-left text-xs font-bold text-white uppercase tracking-wider whitespace-nowrap relative group"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-2">
+                                {header}
+                                {sortColumn === header && (
+                                  <svg 
+                                    className="w-4 h-4" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                  >
+                                    {sortDirection === 'asc' ? (
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                    ) : (
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    )}
+                                  </svg>
+                                )}
+                              </span>
+                              
+                              {/* Three Dots Menu */}
+                              <div className="relative" ref={openColumnMenu === header ? menuRef : null}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenColumnMenu(openColumnMenu === header ? null : header);
+                                  }}
+                                  className="p-1 hover:bg-white/20 rounded transition-colors opacity-0 group-hover:opacity-100"
+                                >
+                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
+                                  </svg>
+                                </button>
 
-                {filteredFiles.length > 10 && (
-                  <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 text-center">
-                    <p className="text-sm text-gray-600">
-                      Showing first 10 of {filteredFiles.length} files. Export to Excel to view all data.
-                    </p>
-                  </div>
+                                {/* Dropdown Menu */}
+                                {openColumnMenu === header && (
+                                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 z-50">
+                                    <button
+                                      onClick={() => handleSort(header, 'asc')}
+                                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-purple-50 flex items-center gap-3"
+                                    >
+                                      <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                      </svg>
+                                      Sort A → Z (Ascending)
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => handleSort(header, 'desc')}
+                                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-purple-50 flex items-center gap-3"
+                                    >
+                                      <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                      Sort Z → A (Descending)
+                                    </button>
+
+                                    {sortColumn === header && (
+                                      <>
+                                        <hr className="my-2 border-gray-200" />
+                                        <button
+                                          onClick={clearSort}
+                                          className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                          Clear Sort
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredData.map((row, rowIndex) => (
+                        <tr key={rowIndex} className="hover:bg-gray-50 transition-colors">
+                          {headers.map((header, colIndex) => (
+                            <td
+                              key={colIndex}
+                              className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap"
+                            >
+                              {header === 'fileType' ? (
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getFileTypeBadgeColor(row[header])}`}>
+                                  {formatCellValue(row[header])}
+                                </span>
+                              ) : header === 'uploadDate' ? (
+                                formatDate(row[header])
+                              ) : (
+                                formatCellValue(row[header])
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
+
+              {/* Pagination Info */}
+              {filteredData.length > 0 && (
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600 text-center">
+                    Showing {filteredData.length} of {allExcelData.length} rows
+                    {sortColumn && (
+                      <span className="ml-2 text-purple-600">
+                        • Sorted by {sortColumn} ({sortDirection === 'asc' ? 'Ascending' : 'Descending'})
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -445,4 +559,4 @@ export const ConversionReports = () => {
   );
 };
 
-export default ConversionReports;
+export default ConversionDashboard;

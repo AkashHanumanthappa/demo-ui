@@ -1,0 +1,30 @@
+Fix subscript detection: increase SCRIPT_MAX_HEIGHT from 12 to 14px
+
+ISSUE:
+Subscripts like T₂ were appearing as separate <text> elements with their
+own col_id and reading_order, instead of being merged inline with their
+parent text.
+
+ROOT CAUSE:
+The SCRIPT_MAX_HEIGHT threshold (12px) was too strict. Many subscripts
+are 13px tall, which exceeded the threshold and prevented detection.
+
+SOLUTION:
+Increased SCRIPT_MAX_HEIGHT from 12 to 14 pixels in pdf_to_excel_columns.py.
+This allows detection of slightly taller subscripts while maintaining
+a safe margin from drop caps (30-50px).
+
+IMPACT:
+- Subscripts/superscripts up to 14px are now detected and merged inline
+- Proper <subscript> and <superscript> XML elements are generated
+- Fixes scientific notation (10⁷), chemical formulas (H₂O), math (x₁)
+- No risk of false positives (16px+ margin from drop caps)
+
+FILES MODIFIED:
+- pdf_to_excel_columns.py (line 20): SCRIPT_MAX_HEIGHT = 14
+
+VERIFICATION:
+Tested with page 27 example where subscript "2" (13px) was not being
+detected. Now correctly identified as subscript of "T".
+
+See SUBSCRIPT_FIX_SUMMARY.md for complete technical details.

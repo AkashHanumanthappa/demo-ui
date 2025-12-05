@@ -156,6 +156,76 @@ Check server status
    - Status changes to "completed" with output file info
 6. User can download converted files via `/api/files/:id/download/:fileName`
 
+## Email Notifications
+
+The system automatically sends email notifications to users when their document conversions complete or fail.
+
+### Email Configuration
+
+To enable email notifications, configure the following environment variables in your `.env` file:
+
+```bash
+# Enable/disable email notifications
+EMAIL_ENABLED=true
+
+# SMTP Configuration
+EMAIL_HOST=smtp.gmail.com      # Your SMTP host
+EMAIL_PORT=587                  # SMTP port (587 for TLS, 465 for SSL)
+EMAIL_SECURE=false             # true for SSL (port 465), false for TLS (port 587)
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
+
+# Frontend URL for email links
+FRONTEND_URL=http://localhost:5173
+```
+
+### Gmail Setup Example
+
+If using Gmail:
+
+1. Enable 2-Factor Authentication on your Google Account
+2. Generate an App Password:
+   - Go to Google Account → Security → 2-Step Verification → App passwords
+   - Select "Mail" and "Other (Custom name)"
+   - Copy the generated 16-character password
+3. Use the app password as `EMAIL_PASS` in your `.env` file
+
+### Other Email Providers
+
+For other providers like SendGrid, Mailgun, or your own SMTP server:
+
+```bash
+# SendGrid Example
+EMAIL_HOST=smtp.sendgrid.net
+EMAIL_PORT=587
+EMAIL_USER=apikey
+EMAIL_PASS=your-sendgrid-api-key
+
+# Custom SMTP Example
+EMAIL_HOST=mail.yourdomain.com
+EMAIL_PORT=587
+EMAIL_USER=noreply@yourdomain.com
+EMAIL_PASS=your-smtp-password
+```
+
+### Email Templates
+
+The system sends two types of emails:
+
+1. **Success Notification**: Sent when conversion completes successfully
+   - Lists all generated output files
+   - Provides direct link to download page
+   - Professional HTML template with branding
+
+2. **Failure Notification**: Sent when conversion fails
+   - Shows error details
+   - Provides troubleshooting steps
+   - Link to retry conversion
+
+### Disabling Email Notifications
+
+To disable email notifications, set `EMAIL_ENABLED=false` in your `.env` file. The system will continue to work normally without sending emails.
+
 ## Project Structure
 
 ```
@@ -175,7 +245,8 @@ backend/
 │   ├── userRoutes.js
 │   └── fileRoutes.js
 ├── utils/            # Utility functions
-│   └── docConverter.js
+│   ├── docConverter.js
+│   └── emailService.js  # Email notification service
 ├── uploads/          # Uploaded files (gitignored)
 ├── outputs/          # Converted files (gitignored)
 ├── .env.example      # Environment variables template
